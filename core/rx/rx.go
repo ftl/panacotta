@@ -7,17 +7,20 @@ import (
 	"sync"
 	"time"
 
+	"github.com/ftl/panacotta/core"
 	"github.com/pkg/errors"
-	"gonum.org/v1/gonum/fourier"
 )
 
 // New instance of the receiver.
 func New(in io.ReadCloser, fftSink FFTSink) *Receiver {
 	result := Receiver{
-		in:      in,
-		fftSink: fftSink,
+		in:        in,
+		readBlock: readIQBlock8,
+		fft:       newFFT(),
+		fftSink:   fftSink,
+
+		blockSize: 131072,
 	}
-	result.readBlock = result.readIQBlock8
 	return &result
 }
 
@@ -25,28 +28,42 @@ func New(in io.ReadCloser, fftSink FFTSink) *Receiver {
 type Receiver struct {
 	in        io.ReadCloser
 	readBlock blockReader
+	fft       *fft
 	fftSink   FFTSink
+
+	blockSize int // fix
+
+	vfoFrequency    core.Frequency      // updated from outside
+	rangeOfInterest core.FrequencyRange // depends on vfoFrequency
+
+	ifCenter    core.Frequency // fix, corresponds to the vfoFrequency in the IF range
+	rxCenter    core.Frequency // fix, maybe variable depending on the rangeOfInterest
+	rxBandwidth core.Frequency // == sample rate, fix
+}
+
+// FFTData type.
+type FFTData struct {
+	Samples []float64
+	Range   core.FrequencyRange
 }
 
 // FFTSink receives FFT data from the receiver.
-type FFTSink func([]complex128)
-type blockReader func(blocksize int) ([]complex128, error)
+type FFTSink func([]float64)
+
+type blockReader func(in io.Reader, blocksize int) ([]complex128, error)
 
 // Run this receiver.
 func (r *Receiver) Run(stop chan struct{}, wait *sync.WaitGroup) {
-	const blockSize = 131072
-
 	wait.Add(1)
 	go func() {
 		defer wait.Done()
 		defer r.in.Close()
 
-		fa := fourier.NewCmplxFFT(blockSize)
 		for {
 			select {
 			case <-time.After(1 * time.Millisecond):
 				start := time.Now()
-				block, err := r.readBlock(blockSize)
+				block, err := r.readBlock(r.in, r.blockSize)
 				log.Printf("data received after %v", time.Now().Sub(start))
 				if err == io.EOF {
 					log.Print("Waiting for data")
@@ -56,8 +73,8 @@ func (r *Receiver) Run(stop chan struct{}, wait *sync.WaitGroup) {
 					continue
 				}
 
-				fftdata := fa.Coefficients(nil, block)
-				r.fftSink(fftdata)
+				_, fftdata := r.fft.calculate(block)
+				r.fftSink(fftdata) // TODO: use fftdata
 			case <-stop:
 				return
 			}
@@ -65,7 +82,7 @@ func (r *Receiver) Run(stop chan struct{}, wait *sync.WaitGroup) {
 	}()
 }
 
-func (r *Receiver) readIQBlock8(blocksize int) ([]complex128, error) {
+func readIQBlock8(in io.Reader, blocksize int) ([]complex128, error) {
 	if blocksize%2 != 0 {
 		return []complex128{}, errors.New("blocksize must be even")
 	}
@@ -73,7 +90,7 @@ func (r *Receiver) readIQBlock8(blocksize int) ([]complex128, error) {
 	result := make([]complex128, blocksize)
 
 	buf := make([]byte, blocksize*2)
-	_, err := r.in.Read(buf)
+	_, err := in.Read(buf)
 	if err != nil {
 		return []complex128{}, errors.Wrap(err, "cannot read block of 8-bit samples")
 	}
@@ -87,11 +104,7 @@ func (r *Receiver) readIQBlock8(blocksize int) ([]complex128, error) {
 	return result, nil
 }
 
-func normalizeSampleUint8(s byte) float64 {
-	return (float64(s) - float64(math.MaxInt8)) / float64(math.MaxInt8)
-}
-
-func (r *Receiver) readIBlock8(blocksize int) ([]complex128, error) {
+func readIBlock8(in io.Reader, blocksize int) ([]complex128, error) {
 	if blocksize%2 != 0 {
 		return []complex128{}, errors.New("blocksize must be even")
 	}
@@ -99,7 +112,7 @@ func (r *Receiver) readIBlock8(blocksize int) ([]complex128, error) {
 	result := make([]complex128, blocksize)
 
 	buf := make([]byte, blocksize)
-	_, err := r.in.Read(buf)
+	_, err := in.Read(buf)
 	if err != nil {
 		return []complex128{}, errors.Wrap(err, "cannot read block of 8-bit samples")
 	}
@@ -110,4 +123,8 @@ func (r *Receiver) readIBlock8(blocksize int) ([]complex128, error) {
 	}
 
 	return result, nil
+}
+
+func normalizeSampleUint8(s byte) float64 {
+	return (float64(s) - float64(math.MaxInt8)) / float64(math.MaxInt8)
 }

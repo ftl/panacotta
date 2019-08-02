@@ -19,7 +19,7 @@ type View interface {
 
 // FFTView for FFT data
 type FFTView interface {
-	ShowData([]complex128)
+	ShowData([]float64)
 }
 
 // Controller for the application.

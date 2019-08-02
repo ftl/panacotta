@@ -1,7 +1,6 @@
 package fft
 
 import (
-	"math"
 	"sync"
 	"time"
 
@@ -19,7 +18,6 @@ func New(builder *gtk.Builder) *View {
 
 	result.dataLock = new(sync.RWMutex)
 	result.redrawInterval = (1 * time.Second) / time.Duration(5)
-	result.smoothingBuffer = make([][]complex128, 5)
 
 	return result
 }
@@ -28,48 +26,29 @@ func New(builder *gtk.Builder) *View {
 type View struct {
 	view *gtk.DrawingArea
 
-	data           []complex128
+	data           []float64
 	dataLock       *sync.RWMutex
 	lastRedraw     time.Time
 	redrawInterval time.Duration
-
-	smoothingBuffer [][]complex128
-	smoothingIndex  int
 }
 
 // ShowData shows the given data
-func (v *View) ShowData(data []complex128) {
-	v.smoothingBuffer[v.smoothingIndex] = data
-	v.smoothingIndex = (v.smoothingIndex + 1) % len(v.smoothingBuffer)
-
+func (v *View) ShowData(data []float64) {
 	now := time.Now()
 	if now.Sub(v.lastRedraw) < v.redrawInterval {
 		return
 	}
 
-	average := make([]complex128, len(data))
-	for i := 0; i < len(average); i++ {
-		var re, im float64
-		for j := 0; j < len(v.smoothingBuffer); j++ {
-			if len(v.smoothingBuffer[j]) != len(data) {
-				continue
-			}
-			re = math.Max(real(v.smoothingBuffer[j][i]), re)
-			im = math.Max(imag(v.smoothingBuffer[j][i]), im)
-		}
-		average[i] = complex(re, im)
-	}
-
 	v.dataLock.Lock()
 	defer v.dataLock.Unlock()
-	v.data = average
+	v.data = data
 
 	v.lastRedraw = now
 	v.view.QueueDraw()
 }
 
 func (v *View) onDraw(da *gtk.DrawingArea, cr *cairo.Context) {
-	var data []complex128
+	var data []float64
 	func() {
 		v.dataLock.RLock()
 		defer v.dataLock.RUnlock()
@@ -86,19 +65,7 @@ func (v *View) onDraw(da *gtk.DrawingArea, cr *cairo.Context) {
 	scaleX := float64(fullWidth) / float64(len(v.data))
 	maxY := 100.0
 
-	line := make([]float64, 2000)
-	offset := (len(data) - len(line)) / 2
-	for i := 0; i < len(line); i++ {
-		var d complex128
-		if i < len(line)/2 {
-			d = data[len(data)/2+(i+offset)]
-		} else {
-			d = data[(i+offset)-len(data)/2]
-		}
-		pwr := (imag(d)*imag(d) + real(d)*real(d))
-		line[i] = 10.0*math.Log10(pwr+1.0e-20) + 0.5
-	}
-	scaleX = width / float64(len(line))
+	scaleX = width / float64(len(data))
 
 	cr.Save()
 
@@ -107,16 +74,16 @@ func (v *View) onDraw(da *gtk.DrawingArea, cr *cairo.Context) {
 	m.Scale(scaleX, -height/maxY)
 	cr.Transform(m)
 
-	centerX, _ := cr.UserToDeviceDistance(float64(len(line)/2), 0)
+	centerX, _ := cr.UserToDeviceDistance(float64(len(data)/2), 0)
 
 	cr.SetSourceRGBA(1.0, 0, 0, 0.3)
 	cr.MoveTo(0, 0)
-	drawLine(cr, line)
+	drawLine(cr, data)
 	cr.ClosePath()
 	cr.Fill()
 
 	cr.MoveTo(0, 0)
-	drawLine(cr, line)
+	drawLine(cr, data)
 
 	cr.Restore()
 
