@@ -1,4 +1,4 @@
-package fft
+package panorama
 
 import (
 	"sync"
@@ -13,7 +13,7 @@ import (
 // New returns a new instance of the FFT View, connected to the fftArea accesible through the given builder.
 func New(builder *gtk.Builder) *View {
 	result := new(View)
-	result.view = ui.Get(builder, "fftArea").(*gtk.DrawingArea)
+	result.view = ui.Get(builder, "panoramaView").(*gtk.DrawingArea)
 	result.view.Connect("draw", result.onDraw)
 
 	result.dataLock = new(sync.RWMutex)

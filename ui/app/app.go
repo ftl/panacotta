@@ -7,7 +7,7 @@ import (
 	"github.com/gotk3/gotk3/gtk"
 
 	coreapp "github.com/ftl/panacotta/core/app"
-	"github.com/ftl/panacotta/ui/fft"
+	"github.com/ftl/panacotta/ui/panorama"
 )
 
 // Run the application
@@ -50,7 +50,7 @@ func (a *application) activate() {
 
 	a.controller = coreapp.NewController()
 	a.mainWindow = newMainWindow(a.builder, a.app)
-	a.controller.SetFFTView(fft.New(a.builder))
+	a.controller.SetFFTView(panorama.New(a.builder))
 
 	a.controller.Startup()
 

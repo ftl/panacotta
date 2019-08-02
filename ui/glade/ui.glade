@@ -8,7 +8,7 @@
       <placeholder/>
     </child>
     <child>
-      <object class="GtkDrawingArea" id="fftArea">
+      <object class="GtkDrawingArea" id="panoramaView">
         <property name="visible">True</property>
         <property name="can_focus">False</property>
       </object>
