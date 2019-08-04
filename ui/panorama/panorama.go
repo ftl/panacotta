@@ -85,7 +85,7 @@ func (v *View) onDraw(da *gtk.DrawingArea, cr *cairo.Context) {
 	height, width := float64(da.GetAllocatedHeight()), float64(da.GetAllocatedWidth())
 
 	scaleX := float64(width) / float64(vfoROI.Width())
-	maxY := 100.0
+	maxY := 50.0
 
 	cr.Save()
 
@@ -96,13 +96,11 @@ func (v *View) onDraw(da *gtk.DrawingArea, cr *cairo.Context) {
 
 	vfoX, _ := cr.UserToDeviceDistance(float64(vfoFrequency-vfoROI.From), 0)
 
-	if blockSize < int(width*2) {
-		cr.SetSourceRGBA(1.0, 0, 0, 0.3)
-		cr.MoveTo(0, 0)
-		drawLine(cr, data, hzPerBin)
-		cr.ClosePath()
-		cr.Fill()
-	}
+	cr.SetSourceRGBA(1.0, 0, 0, 0.3)
+	cr.MoveTo(0, 0)
+	drawLine(cr, data, hzPerBin)
+	cr.ClosePath()
+	cr.Fill()
 
 	cr.MoveTo(0, 0)
 	drawLine(cr, data, hzPerBin)
@@ -113,6 +111,7 @@ func (v *View) onDraw(da *gtk.DrawingArea, cr *cairo.Context) {
 	cr.SetSourceRGB(1.0, 0, 0)
 	cr.Stroke()
 
+	cr.SetLineWidth(1.5)
 	cr.SetSourceRGB(0, 0, 1.0)
 	cr.MoveTo(vfoX, 0)
 	cr.LineTo(vfoX, height)

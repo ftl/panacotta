@@ -15,7 +15,7 @@ func newMainWindow(builder *gtk.Builder, application *gtk.Application) *mainWind
 
 	result.window = ui.Get(builder, "mainWindow").(*gtk.ApplicationWindow)
 	result.window.SetApplication(application)
-	result.window.SetDefaultSize(2500, 500)
+	result.window.SetDefaultSize(2500, 300)
 
 	return result
 }
