@@ -8,11 +8,12 @@ import (
 	"time"
 
 	"github.com/ftl/panacotta/core"
+	"github.com/ftl/panacotta/core/bandplan"
 	"github.com/pkg/errors"
 )
 
 // New instance of the receiver.
-func New(in io.ReadCloser, fftSink FFTSink) *Receiver {
+func New(in io.ReadCloser, ifCenter, rxCenter, rxBandwidth core.Frequency, fftSink FFTSink) *Receiver {
 	result := Receiver{
 		in:        in,
 		readBlock: readIQBlock8,
@@ -20,6 +21,12 @@ func New(in io.ReadCloser, fftSink FFTSink) *Receiver {
 		fftSink:   fftSink,
 
 		blockSize: 131072,
+
+		vfoBand: bandplan.UnknownBand,
+
+		ifCenter:    ifCenter,
+		rxCenter:    rxCenter,
+		rxBandwidth: rxBandwidth,
 	}
 	return &result
 }
@@ -33,18 +40,14 @@ type Receiver struct {
 
 	blockSize int // fix
 
-	vfoFrequency    core.Frequency      // updated from outside
-	rangeOfInterest core.FrequencyRange // depends on vfoFrequency
+	vfoFrequency core.Frequency      // updated from outside
+	vfoBand      bandplan.Band       // depends on the vfoFrequency
+	vfoROI       core.FrequencyRange // depends on vfoFrequency
 
-	ifCenter    core.Frequency // fix, corresponds to the vfoFrequency in the IF range
-	rxCenter    core.Frequency // fix, maybe variable depending on the rangeOfInterest
-	rxBandwidth core.Frequency // == sample rate, fix
-}
-
-// FFTData type.
-type FFTData struct {
-	Samples []float64
-	Range   core.FrequencyRange
+	ifCenter    core.Frequency      // fix, corresponds to the vfoFrequency in the IF range
+	rxCenter    core.Frequency      // fix
+	rxBandwidth core.Frequency      // == sample rate, fix
+	rxROI       core.FrequencyRange // corresponds to the vfoROI in the IF range
 }
 
 // FFTSink receives FFT data from the receiver.
@@ -71,7 +74,13 @@ func (r *Receiver) Run(stop chan struct{}, wait *sync.WaitGroup) {
 					continue
 				}
 
-				_, fftdata := r.fft.calculate(block)
+				blockSize := len(block)
+				hzPerBin := r.rxBandwidth / core.Frequency(blockSize)
+
+				fromBin := int(r.rxROI.From / hzPerBin)
+				toBin := int(r.rxROI.To / hzPerBin)
+
+				_, fftdata := r.fft.calculate(block, fromBin, toBin)
 				r.fftSink(fftdata)
 			case <-stop:
 				return
@@ -83,6 +92,21 @@ func (r *Receiver) Run(stop chan struct{}, wait *sync.WaitGroup) {
 func (r *Receiver) shutdown() {
 	r.in.Close()
 	log.Print("Receiver shutdown")
+}
+
+// SetVFOFrequency sets the current VFO frequency.
+func (r *Receiver) SetVFOFrequency(f core.Frequency) {
+	r.vfoFrequency = f
+	// if !r.vfoBand.Contains(f) {
+	// 	r.vfoBand = bandplan.IARURegion1.ByFrequency(f)
+	// 	r.vfoROI = core.FrequencyRange{From: r.vfoBand.From - 10000.0, To: r.vfoBand.To + 10000.0}
+	// }
+	r.vfoROI = core.FrequencyRange{From: f - 20000, To: f + 20000}
+	r.rxROI = core.FrequencyRange{From: r.vfoToRx(r.vfoROI.From), To: r.vfoToRx(r.vfoROI.To)}
+}
+
+func (r *Receiver) vfoToRx(f core.Frequency) core.Frequency {
+	return core.Frequency(r.rxBandwidth/2) - (r.vfoFrequency - f) - (r.ifCenter - r.rxCenter)
 }
 
 func readIQBlock8(in io.Reader, blocksize int) ([]complex128, error) {

@@ -37,11 +37,15 @@ func (c *Controller) Startup() {
 	c.done = make(chan struct{})
 	c.subProcesses = new(sync.WaitGroup)
 
-	dongle, err := rtlsdr.Open(67899000, 1800000, -50)
+	ifCenter := 67899000   // this is fix for the FT-450D
+	rxBandwidth := 1800000 // this is the sample rate
+	rxCenter := ifCenter - (rxBandwidth / 4)
+
+	dongle, err := rtlsdr.Open(rxCenter, rxBandwidth, -50)
 	if err != nil {
 		log.Fatal(err)
 	}
-	rx := rx.New(dongle, c.fftView.ShowData)
+	rx := rx.New(dongle, core.Frequency(ifCenter), core.Frequency(rxCenter), core.Frequency(rxBandwidth), c.fftView.ShowData)
 
 	vfo, err := vfo.Open("afu.fritz.box:4532")
 	if err != nil {
@@ -50,6 +54,7 @@ func (c *Controller) Startup() {
 	vfo.OnFrequencyChange(func(f core.Frequency) {
 		log.Print("Current frequency: ", f)
 	})
+	vfo.OnFrequencyChange(rx.SetVFOFrequency)
 
 	rx.Run(c.done, c.subProcesses)
 	vfo.Run(c.done, c.subProcesses)

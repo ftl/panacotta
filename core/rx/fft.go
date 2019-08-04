@@ -18,15 +18,15 @@ type fft struct {
 	smoothingIndex  int
 }
 
-func (f *fft) calculate(samplesBlock []complex128) (raw, smoothed []float64) {
+func (f *fft) calculate(samplesBlock []complex128, fromBin, toBin int) (raw, smoothed []float64) {
 	blockSize := len(samplesBlock)
 	data := dsp.FFT(samplesBlock)
 
 	f.smoothingBuffer[f.smoothingIndex] = data
 	f.smoothingIndex = (f.smoothingIndex + 1) % len(f.smoothingBuffer)
 
-	resultSize := 3000                     // TODO: apply the range-of-interest here
-	offset := (blockSize - resultSize) / 2 // TODO: this is centered around rxCenter, should be the offset of the lower bound of the ROI
+	resultSize := toBin - fromBin
+	offset := fromBin
 	raw = make([]float64, resultSize)
 	smoothed = make([]float64, resultSize)
 
