@@ -57,7 +57,7 @@ func (r *Receiver) Run(stop chan struct{}, wait *sync.WaitGroup) {
 	wait.Add(1)
 	go func() {
 		defer wait.Done()
-		defer r.in.Close()
+		defer r.shutdown()
 
 		for {
 			select {
@@ -67,7 +67,7 @@ func (r *Receiver) Run(stop chan struct{}, wait *sync.WaitGroup) {
 					log.Print("Waiting for data")
 					continue
 				} else if err != nil {
-					log.Print("Reading incoming data failed:", err)
+					log.Print("Reading incoming data failed: ", err)
 					continue
 				}
 
@@ -78,6 +78,11 @@ func (r *Receiver) Run(stop chan struct{}, wait *sync.WaitGroup) {
 			}
 		}
 	}()
+}
+
+func (r *Receiver) shutdown() {
+	r.in.Close()
+	log.Print("Receiver shutdown")
 }
 
 func readIQBlock8(in io.Reader, blocksize int) ([]complex128, error) {

@@ -4,8 +4,10 @@ import (
 	"log"
 	"sync"
 
+	"github.com/ftl/panacotta/core"
 	"github.com/ftl/panacotta/core/rtlsdr"
 	"github.com/ftl/panacotta/core/rx"
+	"github.com/ftl/panacotta/core/vfo"
 )
 
 // NewController returns a new instance of the AppController interface.
@@ -40,7 +42,17 @@ func (c *Controller) Startup() {
 		log.Fatal(err)
 	}
 	rx := rx.New(dongle, c.fftView.ShowData)
+
+	vfo, err := vfo.Open("afu.fritz.box:4532")
+	if err != nil {
+		log.Fatal(err)
+	}
+	vfo.OnFrequencyChange(func(f core.Frequency) {
+		log.Print("Current frequency: ", f)
+	})
+
 	rx.Run(c.done, c.subProcesses)
+	vfo.Run(c.done, c.subProcesses)
 }
 
 // Shutdown the application.
