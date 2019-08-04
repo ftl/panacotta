@@ -131,7 +131,7 @@ func (v *VFO) CurrentFrequency() core.Frequency {
 	return v.currentFrequency
 }
 
-// OnFrequencyChange registers the given callback to be notified if the current frequency changes.
+// OnFrequencyChange registers the given callback to be notified when the current frequency changes.
 func (v *VFO) OnFrequencyChange(f FrequencyChanged) {
 	v.frequencyChangedCallbacks = append(v.frequencyChangedCallbacks, f)
 }

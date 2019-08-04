@@ -29,7 +29,7 @@ func Run(args []string) {
 type controller interface {
 	Startup()
 	Shutdown()
-	SetFFTView(coreapp.FFTView)
+	SetPanoramaView(coreapp.PanoramaView)
 }
 
 type application struct {
@@ -50,7 +50,7 @@ func (a *application) activate() {
 
 	a.controller = coreapp.NewController()
 	a.mainWindow = newMainWindow(a.builder, a.app)
-	a.controller.SetFFTView(panorama.New(a.builder))
+	a.controller.SetPanoramaView(panorama.New(a.builder))
 
 	a.controller.Startup()
 

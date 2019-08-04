@@ -13,12 +13,11 @@ import (
 )
 
 // New instance of the receiver.
-func New(in io.ReadCloser, ifCenter, rxCenter, rxBandwidth core.Frequency, fftSink FFTSink) *Receiver {
+func New(in io.ReadCloser, ifCenter, rxCenter, rxBandwidth core.Frequency) *Receiver {
 	result := Receiver{
 		in:        in,
 		readBlock: readIQBlock8,
 		fft:       newFFT(),
-		fftSink:   fftSink,
 
 		blockSize: 131072,
 
@@ -36,7 +35,6 @@ type Receiver struct {
 	in        io.ReadCloser
 	readBlock blockReader
 	fft       *fft
-	fftSink   FFTSink
 
 	blockSize int // fix
 
@@ -48,10 +46,16 @@ type Receiver struct {
 	rxCenter    core.Frequency      // fix
 	rxBandwidth core.Frequency      // == sample rate, fix
 	rxROI       core.FrequencyRange // corresponds to the vfoROI in the IF range
+
+	fftAvailableCallbacks []FFTAvailable
+	vfoChangedCallbacks   []VFOChanged
 }
 
-// FFTSink receives FFT data from the receiver.
-type FFTSink func([]float64)
+// FFTAvailable is called when new FFT data is available.
+type FFTAvailable func([]float64)
+
+// VFOChanged is called when the VFO setup (frequency, ROI), changes.
+type VFOChanged func(core.Frequency, core.FrequencyRange)
 
 type blockReader func(in io.Reader, blocksize int) ([]complex128, error)
 
@@ -81,7 +85,9 @@ func (r *Receiver) Run(stop chan struct{}, wait *sync.WaitGroup) {
 				toBin := int(r.rxROI.To / hzPerBin)
 
 				_, fftdata := r.fft.calculate(block, fromBin, toBin)
-				r.fftSink(fftdata)
+				for _, fftAvailable := range r.fftAvailableCallbacks {
+					fftAvailable(fftdata)
+				}
 			case <-stop:
 				return
 			}
@@ -97,16 +103,35 @@ func (r *Receiver) shutdown() {
 // SetVFOFrequency sets the current VFO frequency.
 func (r *Receiver) SetVFOFrequency(f core.Frequency) {
 	r.vfoFrequency = f
+
+	// full band
 	// if !r.vfoBand.Contains(f) {
 	// 	r.vfoBand = bandplan.IARURegion1.ByFrequency(f)
 	// 	r.vfoROI = core.FrequencyRange{From: r.vfoBand.From - 10000.0, To: r.vfoBand.To + 10000.0}
 	// }
+
+	// centered around vfoFrequency
 	r.vfoROI = core.FrequencyRange{From: f - 20000, To: f + 20000}
+
 	r.rxROI = core.FrequencyRange{From: r.vfoToRx(r.vfoROI.From), To: r.vfoToRx(r.vfoROI.To)}
+
+	for _, vfoChanged := range r.vfoChangedCallbacks {
+		vfoChanged(r.vfoFrequency, r.vfoROI)
+	}
 }
 
 func (r *Receiver) vfoToRx(f core.Frequency) core.Frequency {
 	return core.Frequency(r.rxBandwidth/2) - (r.vfoFrequency - f) - (r.ifCenter - r.rxCenter)
+}
+
+// OnFFTAvailable registers the given callback to be notified when new FFT data is available.
+func (r *Receiver) OnFFTAvailable(f FFTAvailable) {
+	r.fftAvailableCallbacks = append(r.fftAvailableCallbacks, f)
+}
+
+// OnVFOChange registers the given callback to be notified when the VFO setup (frequency, ROI) changes.
+func (r *Receiver) OnVFOChange(f VFOChanged) {
+	r.vfoChangedCallbacks = append(r.vfoChangedCallbacks, f)
 }
 
 func readIQBlock8(in io.Reader, blocksize int) ([]complex128, error) {

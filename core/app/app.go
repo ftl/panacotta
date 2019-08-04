@@ -19,9 +19,10 @@ func NewController() *Controller {
 type View interface {
 }
 
-// FFTView for FFT data
-type FFTView interface {
-	ShowData([]float64)
+// PanoramaView shows FFT data, the VFO ROI, the VFO frequency.
+type PanoramaView interface {
+	SetFFTData([]float64)
+	SetVFO(frequency core.Frequency, roi core.FrequencyRange)
 }
 
 // Controller for the application.
@@ -29,7 +30,7 @@ type Controller struct {
 	done         chan struct{}
 	subProcesses *sync.WaitGroup
 
-	fftView FFTView
+	panorama PanoramaView
 }
 
 // Startup the application.
@@ -45,7 +46,9 @@ func (c *Controller) Startup() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	rx := rx.New(dongle, core.Frequency(ifCenter), core.Frequency(rxCenter), core.Frequency(rxBandwidth), c.fftView.ShowData)
+	rx := rx.New(dongle, core.Frequency(ifCenter), core.Frequency(rxCenter), core.Frequency(rxBandwidth))
+	rx.OnFFTAvailable(c.panorama.SetFFTData)
+	rx.OnVFOChange(c.panorama.SetVFO)
 
 	vfo, err := vfo.Open("afu.fritz.box:4532")
 	if err != nil {
@@ -66,7 +69,7 @@ func (c *Controller) Shutdown() {
 	c.subProcesses.Wait()
 }
 
-// SetFFTView sets the FFT view.
-func (c *Controller) SetFFTView(fftView FFTView) {
-	c.fftView = fftView
+// SetPanoramaView sets the panorama view.
+func (c *Controller) SetPanoramaView(view PanoramaView) {
+	c.panorama = view
 }
