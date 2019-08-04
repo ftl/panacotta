@@ -7,6 +7,18 @@ I have plenty of ideas what should be added to such a display of the frequency d
 ## Hint
 This is all work in progress and currently not in a state that is useful for anybody. As soon as there is more value in this little tool, I will also provide more documentation about the inner workings. So stay tuned ;-)
 
+## Build
+
+Install `librtlsdr-dev`:
+```
+sudo apt install librtlsdr-dev
+```
+
+Build command (your GTK framework version may vary):
+```
+go build -tags gtk_3_22
+```
+
 ## Disclaimer
 I develop this tool for myself and just for fun in my free time. If you find it useful, I'm happy to hear about that. If you have trouble using it, you have all the source code to fix the problem yourself (although pull requests are welcome).
 
