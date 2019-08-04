@@ -19,7 +19,7 @@ func Open(centerFrequency int, sampleRate int, frequencyCorrection int) (*Dongle
 	err = device.SetSampleRate(sampleRate)
 	if err != nil {
 		device.Close()
-		log.Printf("SetSampleRate failed - error: %v", err)
+		log.Print("SetSampleRate failed", err)
 		return nil, err
 	}
 	log.Printf("GetSampleRate: %d\n", device.GetSampleRate())
@@ -27,21 +27,21 @@ func Open(centerFrequency int, sampleRate int, frequencyCorrection int) (*Dongle
 	err = device.SetCenterFreq(centerFrequency)
 	if err != nil {
 		device.Close()
-		log.Printf("SetCenterFreq failed - error: %v", err)
+		log.Print("SetCenterFreq failed", err)
 		return nil, err
 	}
 
 	err = device.ResetBuffer()
 	if err != nil {
 		device.Close()
-		log.Printf("ResetBuffer failed - error: %v", err)
+		log.Print("ResetBuffer failed", err)
 		return nil, err
 	}
 
 	err = device.SetFreqCorrection(frequencyCorrection)
 	if err != nil {
 		device.Close()
-		log.Printf("SetFreqCorrection failed - error: %v", err)
+		log.Print("SetFreqCorrection failed", err)
 		return nil, err
 	}
 
@@ -86,10 +86,9 @@ func (d *Dongle) Close() error {
 
 func (d *Dongle) incomingData(data []byte) {
 	now := time.Now()
-	log.Printf("incoming data: %d after %v buffer size: %d", len(data), now.Sub(d.lastInput), d.buffer.Len())
 	d.lastInput = now
 	_, err := d.buffer.Write(data)
 	if err != nil {
-		log.Print("ERROR writing to buffer:", err)
+		log.Print("Writing incoming data to buffer failed", err)
 	}
 }

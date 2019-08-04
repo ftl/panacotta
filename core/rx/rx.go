@@ -62,19 +62,17 @@ func (r *Receiver) Run(stop chan struct{}, wait *sync.WaitGroup) {
 		for {
 			select {
 			case <-time.After(1 * time.Millisecond):
-				start := time.Now()
 				block, err := r.readBlock(r.in, r.blockSize)
-				log.Printf("data received after %v", time.Now().Sub(start))
 				if err == io.EOF {
 					log.Print("Waiting for data")
 					continue
 				} else if err != nil {
-					log.Print("ERROR", err)
+					log.Print("Reading incoming data failed:", err)
 					continue
 				}
 
 				_, fftdata := r.fft.calculate(block)
-				r.fftSink(fftdata) // TODO: use fftdata
+				r.fftSink(fftdata)
 			case <-stop:
 				return
 			}
