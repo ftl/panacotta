@@ -18,6 +18,7 @@ func New(builder *gtk.Builder) *View {
 	result := new(View)
 	result.view = ui.Get(builder, "panoramaView").(*gtk.DrawingArea)
 	result.view.Connect("draw", result.onDraw)
+	result.connectMouse()
 
 	result.dataLock = new(sync.RWMutex)
 	result.redrawInterval = (1 * time.Second) / time.Duration(5)
@@ -36,6 +37,8 @@ type View struct {
 
 	lastRedraw     time.Time
 	redrawInterval time.Duration
+
+	mouse mouse
 }
 
 // SetFFTData sets the current FFT data.
@@ -68,6 +71,17 @@ func (v *View) TriggerRedraw() {
 	v.view.QueueDraw()
 }
 
+func (v *View) deviceToFrequency(x float64) core.Frequency {
+	vfoROI := func() core.FrequencyRange {
+		v.dataLock.RLock()
+		defer v.dataLock.RUnlock()
+		return v.vfoROI
+	}()
+	scaleX := float64(v.view.GetAllocatedWidth()) / float64(vfoROI.Width())
+
+	return vfoROI.From + core.Frequency(x/scaleX)
+}
+
 func (v *View) onDraw(da *gtk.DrawingArea, cr *cairo.Context) {
 	data, vfoFrequency, vfoROI := func() ([]float64, core.Frequency, core.FrequencyRange) {
 		v.dataLock.RLock()
@@ -80,10 +94,7 @@ func (v *View) onDraw(da *gtk.DrawingArea, cr *cairo.Context) {
 		return
 	}
 
-	_ = vfoFrequency
-	_ = vfoROI
 	hzPerBin := float64(vfoROI.Width()) / float64(blockSize)
-	_ = hzPerBin
 
 	height, width := float64(da.GetAllocatedHeight()), float64(da.GetAllocatedWidth())
 
@@ -108,12 +119,7 @@ func fillBackground(cr *cairo.Context, width, height float64) {
 	defer cr.Restore()
 
 	cr.SetSourceRGB(0, 0, 0)
-	cr.MoveTo(0, 0)
-	cr.LineTo(width, 0)
-	cr.LineTo(width, height)
-	cr.LineTo(0, height)
-	cr.ClosePath()
-	cr.Fill()
+	cr.Paint()
 }
 
 func calculateInfoCoordinates(cr *cairo.Context, matrix *cairo.Matrix, vfoFrequency core.Frequency, vfoROI core.FrequencyRange, maxY float64) (dbmY []float64) {
