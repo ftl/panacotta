@@ -14,21 +14,31 @@ import (
 )
 
 // New returns a new instance of the FFT View, connected to the fftArea accesible through the given builder.
-func New(builder *gtk.Builder) *View {
-	result := new(View)
-	result.view = ui.Get(builder, "panoramaView").(*gtk.DrawingArea)
+func New(builder *gtk.Builder, controller Controller) *View {
+	result := View{
+		view:       ui.Get(builder, "panoramaView").(*gtk.DrawingArea),
+		controller: controller,
+
+		dataLock:       new(sync.RWMutex),
+		redrawInterval: (1 * time.Second) / time.Duration(5),
+	}
 	result.view.Connect("draw", result.onDraw)
 	result.connectMouse()
 
-	result.dataLock = new(sync.RWMutex)
-	result.redrawInterval = (1 * time.Second) / time.Duration(5)
+	return &result
+}
 
-	return result
+// Controller for the panorama view.
+type Controller interface {
+	Tune(core.Frequency)
+	FineTuneUp()
+	FineTuneDown()
 }
 
 // View of the FFT.
 type View struct {
-	view *gtk.DrawingArea
+	view       *gtk.DrawingArea
+	controller Controller
 
 	fftData      []float64
 	vfoFrequency core.Frequency

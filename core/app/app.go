@@ -15,10 +15,6 @@ func NewController() *Controller {
 	return &Controller{}
 }
 
-// View implementation used by this controller.
-type View interface {
-}
-
 // PanoramaView shows FFT data, the VFO ROI, the VFO frequency.
 type PanoramaView interface {
 	SetFFTData([]float64)
@@ -29,6 +25,9 @@ type PanoramaView interface {
 type Controller struct {
 	done         chan struct{}
 	subProcesses *sync.WaitGroup
+
+	rx  *rx.Receiver
+	vfo *vfo.VFO
 
 	panorama PanoramaView
 }
@@ -46,21 +45,21 @@ func (c *Controller) Startup() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	rx := rx.New(dongle, core.Frequency(ifCenter), core.Frequency(rxCenter), core.Frequency(rxBandwidth))
-	rx.OnFFTAvailable(c.panorama.SetFFTData)
-	rx.OnVFOChange(c.panorama.SetVFO)
+	c.rx = rx.New(dongle, core.Frequency(ifCenter), core.Frequency(rxCenter), core.Frequency(rxBandwidth))
+	c.rx.OnFFTAvailable(c.panorama.SetFFTData)
+	c.rx.OnVFOChange(c.panorama.SetVFO)
 
-	vfo, err := vfo.Open("afu.fritz.box:4532")
+	c.vfo, err = vfo.Open("afu.fritz.box:4532")
 	if err != nil {
 		log.Fatal(err)
 	}
-	vfo.OnFrequencyChange(func(f core.Frequency) {
+	c.vfo.OnFrequencyChange(func(f core.Frequency) {
 		log.Print("Current frequency: ", f)
 	})
-	vfo.OnFrequencyChange(rx.SetVFOFrequency)
+	c.vfo.OnFrequencyChange(c.rx.SetVFOFrequency)
 
-	rx.Run(c.done, c.subProcesses)
-	vfo.Run(c.done, c.subProcesses)
+	c.rx.Run(c.done, c.subProcesses)
+	c.vfo.Run(c.done, c.subProcesses)
 }
 
 // Shutdown the application.
@@ -72,4 +71,21 @@ func (c *Controller) Shutdown() {
 // SetPanoramaView sets the panorama view.
 func (c *Controller) SetPanoramaView(view PanoramaView) {
 	c.panorama = view
+}
+
+// Tune the VFO to the given frequency.
+func (c *Controller) Tune(f core.Frequency) {
+	c.vfo.SetFrequency(f)
+}
+
+// FineTuneUp moves the VFO frequency 10Hz upwards.
+func (c *Controller) FineTuneUp() {
+	log.Print("fine tune up")
+	c.vfo.MoveFrequency(10)
+}
+
+// FineTuneDown moves the VFO frequency 10Hz downwards.
+func (c *Controller) FineTuneDown() {
+	log.Print("fine tune down")
+	c.vfo.MoveFrequency(-10)
 }

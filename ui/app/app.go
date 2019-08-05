@@ -27,6 +27,8 @@ func Run(args []string) {
 }
 
 type controller interface {
+	panorama.Controller
+
 	Startup()
 	Shutdown()
 	SetPanoramaView(coreapp.PanoramaView)
@@ -50,7 +52,7 @@ func (a *application) activate() {
 
 	a.controller = coreapp.NewController()
 	a.mainWindow = newMainWindow(a.builder, a.app)
-	a.controller.SetPanoramaView(panorama.New(a.builder))
+	a.controller.SetPanoramaView(panorama.New(a.builder, a.controller))
 
 	a.controller.Startup()
 

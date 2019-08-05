@@ -42,7 +42,12 @@ func (v *View) onButtonPress(da *gtk.DrawingArea, e *gdk.Event) {
 	v.mouse.startX, v.mouse.startY = buttonEvent.X(), buttonEvent.Y()
 	v.mouse.button = buttonEvent.Button()
 
-	log.Printf("button press x %f y %f button %d f %v", v.mouse.startX, v.mouse.startY, v.mouse.button, v.deviceToFrequency(v.mouse.startX))
+	log.Printf("button press x %f y %f button %d", v.mouse.startX, v.mouse.startY, v.mouse.button)
+
+	switch v.mouse.button {
+	case 1:
+		v.controller.Tune(v.deviceToFrequency(v.mouse.startX))
+	}
 }
 
 func (v *View) onButtonRelease(da *gtk.DrawingArea, e *gdk.Event) {
@@ -70,5 +75,19 @@ func (v *View) onPointerMotion(da *gtk.DrawingArea, e *gdk.Event) {
 }
 
 func (v *View) onScroll(da *gtk.DrawingArea, e *gdk.Event) {
-	log.Print("scroll")
+	scrollEvent := gdk.EventScrollNewFromEvent(e)
+	switch scrollEvent.Direction() {
+	case gdk.SCROLL_UP:
+		log.Print("scroll up")
+		v.controller.FineTuneUp()
+	case gdk.SCROLL_DOWN:
+		log.Print("scroll down")
+		v.controller.FineTuneDown()
+	case gdk.SCROLL_LEFT:
+		log.Print("scroll left")
+	case gdk.SCROLL_RIGHT:
+		log.Print("scroll right")
+	default:
+		log.Print("direction unknown")
+	}
 }

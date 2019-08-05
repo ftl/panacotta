@@ -105,13 +105,16 @@ func (r *Receiver) SetVFOFrequency(f core.Frequency) {
 	r.vfoFrequency = f
 
 	// full band
-	// if !r.vfoBand.Contains(f) {
-	// 	r.vfoBand = bandplan.IARURegion1.ByFrequency(f)
-	// 	r.vfoROI = core.FrequencyRange{From: r.vfoBand.From - 10000.0, To: r.vfoBand.To + 10000.0}
-	// }
+	if !r.vfoBand.Contains(f) {
+		band := bandplan.IARURegion1.ByFrequency(f)
+		if band != bandplan.UnknownBand {
+			r.vfoBand = band
+		}
+		r.vfoROI = core.FrequencyRange{From: r.vfoBand.From - 10000.0, To: r.vfoBand.To + 10000.0}
+	}
 
 	// centered around vfoFrequency
-	r.vfoROI = core.FrequencyRange{From: f - 20000, To: f + 20000}
+	// r.vfoROI = core.FrequencyRange{From: f - 20000, To: f + 20000}
 
 	r.rxROI = core.FrequencyRange{From: r.vfoToRx(r.vfoROI.From), To: r.vfoToRx(r.vfoROI.To)}
 
