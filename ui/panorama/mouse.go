@@ -35,6 +35,10 @@ func (v *View) onButtonPress(da *gtk.DrawingArea, e *gdk.Event) {
 	buttonEvent := gdk.EventButtonNewFromEvent(e)
 	if v.mouse.buttonPressed {
 		log.Printf("double clock x %f y %f button %d", v.mouse.startX, v.mouse.startY, v.mouse.button)
+		switch v.mouse.button {
+		case 1:
+			v.controller.ToggleViewMode()
+		}
 		return
 	}
 

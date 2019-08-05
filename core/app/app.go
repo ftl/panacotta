@@ -89,3 +89,13 @@ func (c *Controller) FineTuneDown() {
 	log.Print("fine tune down")
 	c.vfo.MoveFrequency(-10)
 }
+
+// ToggleViewMode of the panorama view.
+func (c *Controller) ToggleViewMode() {
+	switch c.rx.ViewMode() {
+	case rx.ViewFullBand:
+		c.rx.SetViewMode(rx.ViewCentered)
+	case rx.ViewCentered:
+		c.rx.SetViewMode(rx.ViewFullBand)
+	}
+}

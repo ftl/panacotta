@@ -33,6 +33,7 @@ type Controller interface {
 	Tune(core.Frequency)
 	FineTuneUp()
 	FineTuneDown()
+	ToggleViewMode()
 }
 
 // View of the FFT.

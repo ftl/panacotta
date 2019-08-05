@@ -26,6 +26,8 @@ func New(in io.ReadCloser, ifCenter, rxCenter, rxBandwidth core.Frequency) *Rece
 		ifCenter:    ifCenter,
 		rxCenter:    rxCenter,
 		rxBandwidth: rxBandwidth,
+
+		setViewMode: make(chan ViewMode),
 	}
 	return &result
 }
@@ -49,6 +51,9 @@ type Receiver struct {
 
 	fftAvailableCallbacks []FFTAvailable
 	vfoChangedCallbacks   []VFOChanged
+
+	viewMode    ViewMode
+	setViewMode chan ViewMode
 }
 
 // FFTAvailable is called when new FFT data is available.
@@ -56,6 +61,15 @@ type FFTAvailable func([]float64)
 
 // VFOChanged is called when the VFO setup (frequency, ROI), changes.
 type VFOChanged func(core.Frequency, core.FrequencyRange)
+
+// ViewMode of the panorama.
+type ViewMode int
+
+// All view modes.
+const (
+	ViewFullBand ViewMode = iota
+	ViewCentered
+)
 
 type blockReader func(in io.Reader, blocksize int) ([]complex128, error)
 
@@ -88,6 +102,10 @@ func (r *Receiver) Run(stop chan struct{}, wait *sync.WaitGroup) {
 				for _, fftAvailable := range r.fftAvailableCallbacks {
 					fftAvailable(fftdata)
 				}
+			case viewMode := <-r.setViewMode:
+				r.viewMode = viewMode
+				r.updateROI()
+				r.notifyVFOChange()
 			case <-stop:
 				return
 			}
@@ -103,24 +121,42 @@ func (r *Receiver) shutdown() {
 // SetVFOFrequency sets the current VFO frequency.
 func (r *Receiver) SetVFOFrequency(f core.Frequency) {
 	r.vfoFrequency = f
+	r.updateROI()
+	r.notifyVFOChange()
+}
 
-	// full band
-	if !r.vfoBand.Contains(f) {
-		band := bandplan.IARURegion1.ByFrequency(f)
-		if band != bandplan.UnknownBand {
-			r.vfoBand = band
+func (r *Receiver) updateROI() {
+	f := r.vfoFrequency
+	switch r.viewMode {
+	case ViewFullBand:
+		if !r.vfoBand.Contains(f) {
+			band := bandplan.IARURegion1.ByFrequency(f)
+			if band != bandplan.UnknownBand {
+				r.vfoBand = band
+			}
 		}
 		r.vfoROI = core.FrequencyRange{From: r.vfoBand.From - 10000.0, To: r.vfoBand.To + 10000.0}
+	case ViewCentered:
+		r.vfoROI = core.FrequencyRange{From: f - 20000, To: f + 20000}
 	}
 
-	// centered around vfoFrequency
-	// r.vfoROI = core.FrequencyRange{From: f - 20000, To: f + 20000}
-
 	r.rxROI = core.FrequencyRange{From: r.vfoToRx(r.vfoROI.From), To: r.vfoToRx(r.vfoROI.To)}
+}
 
+func (r *Receiver) notifyVFOChange() {
 	for _, vfoChanged := range r.vfoChangedCallbacks {
 		vfoChanged(r.vfoFrequency, r.vfoROI)
 	}
+}
+
+// SetViewMode of the receiver.
+func (r *Receiver) SetViewMode(viewMode ViewMode) {
+	r.setViewMode <- viewMode
+}
+
+// ViewMode of the receiver.
+func (r *Receiver) ViewMode() ViewMode {
+	return r.viewMode
 }
 
 func (r *Receiver) vfoToRx(f core.Frequency) core.Frequency {
