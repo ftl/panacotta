@@ -8,14 +8,14 @@ import (
 
 func newFFT() *fft {
 	result := fft{
-		smoothingBuffer: make([][]complex128, 5),
-		maxResultSize:   10000,
+		smoothingBuffer: make([][]float64, 5),
+		maxResultSize:   5000,
 	}
 	return &result
 }
 
 type fft struct {
-	smoothingBuffer [][]complex128
+	smoothingBuffer [][]float64
 	smoothingIndex  int
 	maxResultSize   int
 }
@@ -24,11 +24,12 @@ func (f *fft) calculate(samplesBlock []complex128, fromBin, toBin int) (raw, smo
 	blockSize := len(samplesBlock)
 	data := dsp.FFT(samplesBlock)
 
-	f.smoothingBuffer[f.smoothingIndex] = data
-	f.smoothingIndex = (f.smoothingIndex + 1) % len(f.smoothingBuffer)
-
 	resultSize := toBin - fromBin
 	offset := fromBin
+
+	if len(f.smoothingBuffer[f.smoothingIndex]) != blockSize {
+		f.smoothingBuffer[f.smoothingIndex] = make([]float64, blockSize)
+	}
 	raw = make([]float64, resultSize)
 	smoothed = make([]float64, resultSize)
 
@@ -40,26 +41,23 @@ func (f *fft) calculate(samplesBlock []complex128, fromBin, toBin int) (raw, smo
 		} else {
 			resultIndex = i - blockCenter - offset
 		}
-		if resultIndex < 0 || resultIndex >= resultSize {
-			continue
-		}
 
-		var re, im float64
-		for j := 0; j < len(f.smoothingBuffer); j++ {
-			if len(f.smoothingBuffer[j]) != len(data) {
-				continue
-			}
-			pwr1 := math.Pow(im, 2) + math.Pow(re, 2)
-			pwr2 := math.Pow(imag(f.smoothingBuffer[j][i]), 2) + math.Pow(real(f.smoothingBuffer[j][i]), 2)
-			if pwr1 < pwr2 {
-				re = real(f.smoothingBuffer[j][i])
-				im = imag(f.smoothingBuffer[j][i])
-			}
-		}
+		f.smoothingBuffer[f.smoothingIndex][i] = normalizeFFTValue(data[i])
 
-		raw[resultIndex] = normalizeFFTValue(real(data[i]), imag(data[i]))
-		smoothed[resultIndex] = normalizeFFTValue(re, im)
+		if resultIndex >= 0 && resultIndex < resultSize {
+			var smoothedValue float64
+			for j := 0; j < len(f.smoothingBuffer); j++ {
+				if len(f.smoothingBuffer[j]) != len(data) {
+					continue
+				}
+				smoothedValue = math.Max(smoothedValue, f.smoothingBuffer[j][i])
+			}
+
+			raw[resultIndex] = f.smoothingBuffer[f.smoothingIndex][i]
+			smoothed[resultIndex] = smoothedValue
+		}
 	}
+	f.smoothingIndex = (f.smoothingIndex + 1) % len(f.smoothingBuffer)
 
 	for len(raw) > f.maxResultSize {
 		raw = reduce(raw)
@@ -69,8 +67,8 @@ func (f *fft) calculate(samplesBlock []complex128, fromBin, toBin int) (raw, smo
 	return
 }
 
-func normalizeFFTValue(re, im float64) float64 {
-	pwr := math.Pow(im, 2) + math.Pow(re, 2)
+func normalizeFFTValue(v complex128) float64 {
+	pwr := math.Pow(imag(v), 2) + math.Pow(real(v), 2)
 	return 10.0*math.Log10(pwr+1.0e-20) + 0.5
 }
 
