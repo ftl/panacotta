@@ -20,28 +20,28 @@ func Open(address string) (*VFO, error) {
 	if address == "" {
 		address = "localhost:4532"
 	}
-	out, err := net.Dial("tcp", address)
-	if err != nil {
-		return nil, errors.Wrap(err, "cannot open VFO connection")
-	}
-
-	trx := protocol.NewTransceiver(out)
-	trx.WhenDone(func() {
-		out.Close()
-	})
 
 	result := VFO{
-		trx:             trx,
+		address:         address,
+		trxTimeout:      100 * time.Millisecond,
 		pollingInterval: 500 * time.Millisecond,
 		setFrequency:    make(chan core.Frequency, 10),
 		frequencyLock:   new(sync.RWMutex),
 	}
+
+	err := result.reconnect()
+	if err != nil {
+		return nil, err
+	}
+
 	return &result, nil
 }
 
 // VFO type.
 type VFO struct {
+	address                   string
 	trx                       *protocol.Transceiver
+	trxTimeout                time.Duration
 	pollingInterval           time.Duration
 	setFrequency              chan core.Frequency
 	currentFrequency          core.Frequency
@@ -60,18 +60,47 @@ func (v *VFO) Run(stop chan struct{}, wait *sync.WaitGroup) {
 		defer v.shutdown()
 
 		for {
+			var err error
 			select {
 			case <-time.After(v.pollingInterval):
-				v.pollFrequency()
+				err = v.pollFrequency()
 
 			case f := <-v.setFrequency:
-				v.sendFrequency(f)
+				err = v.sendFrequency(f)
 
 			case <-stop:
 				return
 			}
+			if err == nil {
+				continue
+			}
+
+			time.Sleep(500 * time.Millisecond)
+			err = v.reconnect()
+			if err != nil {
+				log.Print("cannot reconnect to hamlib server: ", err)
+				return
+			}
 		}
 	}()
+}
+
+func (v *VFO) reconnect() error {
+	if v.trx != nil {
+		v.trx.Close()
+	}
+
+	out, err := net.Dial("tcp", v.address)
+	if err != nil {
+		return errors.Wrap(err, "cannot open VFO connection")
+	}
+
+	v.trx = protocol.NewTransceiver(out)
+	v.trx.WhenDone(func() {
+		out.Close()
+	})
+
+	return nil
 }
 
 func (v *VFO) shutdown() {
@@ -79,18 +108,19 @@ func (v *VFO) shutdown() {
 	log.Print("VFO shutdown")
 }
 
-func (v *VFO) pollFrequency() {
+func (v *VFO) pollFrequency() error {
+	ctx, _ := context.WithTimeout(context.Background(), v.trxTimeout)
 	request := protocol.Request{Command: protocol.ShortCommand("f")}
-	response, err := v.trx.Send(context.Background(), request)
+	response, err := v.trx.Send(ctx, request)
 	if err != nil {
-		log.Print("Polling frequency failed: ", err)
-		return
+		log.Print("polling frequency failed: ", err)
+		return err
 	}
 
 	f, err := hamlibToF(response.Data[0])
 	if err != nil {
-		log.Printf("Wrong frequency format %s: %v", response.Data[0], err)
-		return
+		log.Printf("wrong frequency format %s: %v", response.Data[0], err)
+		return err
 	}
 
 	if v.updateCurrentFrequency(f) {
@@ -98,6 +128,7 @@ func (v *VFO) pollFrequency() {
 			frequencyChanged(f)
 		}
 	}
+	return nil
 }
 
 func (v *VFO) updateCurrentFrequency(f core.Frequency) bool {
@@ -111,11 +142,13 @@ func (v *VFO) updateCurrentFrequency(f core.Frequency) bool {
 	return true
 }
 
-func (v *VFO) sendFrequency(f core.Frequency) {
+func (v *VFO) sendFrequency(f core.Frequency) error {
+	ctx, _ := context.WithTimeout(context.Background(), v.trxTimeout)
 	request := protocol.Request{Command: protocol.ShortCommand("F"), Args: []string{fToHamlib(f)}}
-	_, err := v.trx.Send(context.Background(), request)
+	_, err := v.trx.Send(ctx, request)
 	if err != nil {
 		log.Print("Sending frequency failed: ", err)
+		return err
 	}
 
 	if v.updateCurrentFrequency(f) {
@@ -123,6 +156,7 @@ func (v *VFO) sendFrequency(f core.Frequency) {
 			frequencyChanged(f)
 		}
 	}
+	return nil
 }
 
 // SetFrequency sets the given frequency on the VFO.
