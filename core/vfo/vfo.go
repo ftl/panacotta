@@ -117,6 +117,11 @@ func (v *VFO) pollFrequency() error {
 		return err
 	}
 
+	if len(response.Data) < 1 {
+		log.Printf("empty response %v", response)
+		return errors.New("empty response")
+	}
+
 	f, err := hamlibToF(response.Data[0])
 	if err != nil {
 		log.Printf("wrong frequency format %s: %v", response.Data[0], err)
