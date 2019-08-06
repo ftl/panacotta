@@ -44,8 +44,7 @@ type VFO struct {
 	trx                       *protocol.Transceiver
 	pollingInterval           time.Duration
 	setFrequency              chan core.Frequency
-	ownFrequency              core.Frequency
-	trxFrequency              core.Frequency
+	currentFrequency          core.Frequency
 	frequencyLock             *sync.RWMutex
 	frequencyChangedCallbacks []FrequencyChanged
 }
@@ -104,11 +103,11 @@ func (v *VFO) pollFrequency() {
 func (v *VFO) updateCurrentFrequency(f core.Frequency) bool {
 	v.frequencyLock.Lock()
 	defer v.frequencyLock.Unlock()
-	if int(f) == int(v.trxFrequency) {
+	if int(f) == int(v.currentFrequency) {
 		return false
 	}
 
-	v.trxFrequency = f
+	v.currentFrequency = f
 	return true
 }
 
@@ -118,25 +117,29 @@ func (v *VFO) sendFrequency(f core.Frequency) {
 	if err != nil {
 		log.Print("Sending frequency failed: ", err)
 	}
+
+	if v.updateCurrentFrequency(f) {
+		for _, frequencyChanged := range v.frequencyChangedCallbacks {
+			frequencyChanged(f)
+		}
+	}
 }
 
 // SetFrequency sets the given frequency on the VFO.
 func (v *VFO) SetFrequency(f core.Frequency) {
-	v.ownFrequency = f
-	v.setFrequency <- v.ownFrequency
+	v.setFrequency <- f
 }
 
 // MoveFrequency moves the VFO frequncy by the given delta.
 func (v *VFO) MoveFrequency(delta core.Frequency) {
-	v.ownFrequency += delta
-	v.setFrequency <- v.ownFrequency
+	v.setFrequency <- v.CurrentFrequency() + delta
 }
 
 // CurrentFrequency returns the current frequency of the VFO.
 func (v *VFO) CurrentFrequency() core.Frequency {
 	v.frequencyLock.RLock()
 	defer v.frequencyLock.RUnlock()
-	return v.trxFrequency
+	return v.currentFrequency
 }
 
 // OnFrequencyChange registers the given callback to be notified when the current frequency changes.

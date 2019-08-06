@@ -34,7 +34,6 @@ func (v *View) connectMouse() {
 func (v *View) onButtonPress(da *gtk.DrawingArea, e *gdk.Event) {
 	buttonEvent := gdk.EventButtonNewFromEvent(e)
 	if v.mouse.buttonPressed {
-		log.Printf("double clock x %f y %f button %d", v.mouse.startX, v.mouse.startY, v.mouse.button)
 		switch v.mouse.button {
 		case 1:
 			v.controller.ToggleViewMode()
@@ -46,8 +45,6 @@ func (v *View) onButtonPress(da *gtk.DrawingArea, e *gdk.Event) {
 	v.mouse.startX, v.mouse.startY = buttonEvent.X(), buttonEvent.Y()
 	v.mouse.button = buttonEvent.Button()
 
-	log.Printf("button press x %f y %f button %d", v.mouse.startX, v.mouse.startY, v.mouse.button)
-
 	switch v.mouse.button {
 	case 1:
 		v.controller.Tune(v.deviceToFrequency(v.mouse.startX))
@@ -55,7 +52,6 @@ func (v *View) onButtonPress(da *gtk.DrawingArea, e *gdk.Event) {
 }
 
 func (v *View) onButtonRelease(da *gtk.DrawingArea, e *gdk.Event) {
-	log.Print("button release")
 	v.mouse.buttonPressed = false
 	v.mouse.startX, v.mouse.startY = 0, 0
 	v.mouse.button = 0
@@ -82,16 +78,10 @@ func (v *View) onScroll(da *gtk.DrawingArea, e *gdk.Event) {
 	scrollEvent := gdk.EventScrollNewFromEvent(e)
 	switch scrollEvent.Direction() {
 	case gdk.SCROLL_UP:
-		log.Print("scroll up")
 		v.controller.FineTuneUp()
 	case gdk.SCROLL_DOWN:
-		log.Print("scroll down")
 		v.controller.FineTuneDown()
-	case gdk.SCROLL_LEFT:
-		log.Print("scroll left")
-	case gdk.SCROLL_RIGHT:
-		log.Print("scroll right")
 	default:
-		log.Print("direction unknown")
+		log.Printf("unknown scroll direction %d", scrollEvent.Direction())
 	}
 }
