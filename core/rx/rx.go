@@ -92,6 +92,8 @@ func (r *Receiver) Run(stop chan struct{}, wait *sync.WaitGroup) {
 					continue
 				}
 
+				// TODO: do some decimation here, we are only  using half the bandwidth
+
 				blockSize := len(block)
 				hzPerBin := r.rxBandwidth / core.Frequency(blockSize)
 
