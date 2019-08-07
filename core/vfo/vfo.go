@@ -71,15 +71,8 @@ func (v *VFO) Run(stop chan struct{}, wait *sync.WaitGroup) {
 			case <-stop:
 				return
 			}
-			if err == nil {
-				continue
-			}
-
-			time.Sleep(500 * time.Millisecond)
-			err = v.reconnect()
 			if err != nil {
-				log.Print("cannot reconnect to hamlib server: ", err)
-				return
+				log.Print(err)
 			}
 		}
 	}()
