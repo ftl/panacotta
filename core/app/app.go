@@ -75,7 +75,7 @@ func (c *Controller) SetPanoramaView(view PanoramaView) {
 
 // Tune the VFO to the given frequency.
 func (c *Controller) Tune(f core.Frequency) {
-	c.vfo.SetFrequency(f)
+	c.vfo.SetFrequency(core.Frequency(int(f/10) * 10))
 }
 
 // FineTuneUp moves the VFO frequency 10Hz upwards.
