@@ -40,6 +40,7 @@ func (c *Controller) Startup() {
 	ifCenter := 67899000   // this is fix for the FT-450D
 	rxBandwidth := 1800000 // this is the sample rate
 	rxCenter := ifCenter + (rxBandwidth / 4)
+	log.Printf("rx @ %v", rxCenter)
 
 	dongle, err := rtlsdr.Open(rxCenter, rxBandwidth, -50)
 	if err != nil {

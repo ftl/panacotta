@@ -15,11 +15,9 @@ import (
 // New instance of the receiver.
 func New(in io.ReadCloser, ifCenter, rxCenter, rxBandwidth core.Frequency) *Receiver {
 	result := Receiver{
-		in:        in,
-		readBlock: readIQBlock8,
-		fft:       newFFT(),
-
-		blockSize: 131072,
+		in:      in,
+		samples: &samplesInput{in: in, blockSize: 131072, readBlock: readIQBlock8},
+		fft:     newFFT(),
 
 		vfoBand: bandplan.UnknownBand,
 
@@ -34,11 +32,9 @@ func New(in io.ReadCloser, ifCenter, rxCenter, rxBandwidth core.Frequency) *Rece
 
 // Receiver type
 type Receiver struct {
-	in        io.ReadCloser
-	readBlock blockReader
-	fft       *fft
-
-	blockSize int // fix
+	in      io.ReadCloser
+	samples SampleSource
+	fft     *fft
 
 	vfoFrequency core.Frequency      // updated from outside
 	vfoBand      bandplan.Band       // depends on the vfoFrequency
@@ -71,7 +67,10 @@ const (
 	ViewCentered
 )
 
-type blockReader func(in io.Reader, blocksize int) ([]complex128, error)
+// SampleSource provides blocks with samples.
+type SampleSource interface {
+	ReadBlock() ([]complex128, error)
+}
 
 // Run this receiver.
 func (r *Receiver) Run(stop chan struct{}, wait *sync.WaitGroup) {
@@ -83,7 +82,7 @@ func (r *Receiver) Run(stop chan struct{}, wait *sync.WaitGroup) {
 		for {
 			select {
 			case <-time.After(1 * time.Millisecond):
-				block, err := r.readBlock(r.in, r.blockSize)
+				block, err := r.samples.ReadBlock()
 				if err == io.EOF {
 					log.Print("Waiting for data")
 					continue
@@ -91,8 +90,6 @@ func (r *Receiver) Run(stop chan struct{}, wait *sync.WaitGroup) {
 					log.Print("Reading incoming data failed: ", err)
 					continue
 				}
-
-				// TODO: do some decimation here, we are only  using half the bandwidth
 
 				blockSize := len(block)
 				hzPerBin := r.rxBandwidth / core.Frequency(blockSize)
@@ -138,6 +135,7 @@ func (r *Receiver) updateROI() {
 			}
 		}
 		r.vfoROI = core.FrequencyRange{From: r.vfoBand.From - 10000.0, To: r.vfoBand.To + 10000.0}
+
 	case ViewCentered:
 		r.vfoROI = core.FrequencyRange{From: f - 20000, To: f + 20000}
 	}
@@ -173,6 +171,18 @@ func (r *Receiver) OnFFTAvailable(f FFTAvailable) {
 // OnVFOChange registers the given callback to be notified when the VFO setup (frequency, ROI) changes.
 func (r *Receiver) OnVFOChange(f VFOChanged) {
 	r.vfoChangedCallbacks = append(r.vfoChangedCallbacks, f)
+}
+
+type samplesInput struct {
+	in        io.Reader
+	blockSize int
+	readBlock blockReader
+}
+
+type blockReader func(in io.Reader, blocksize int) ([]complex128, error)
+
+func (s *samplesInput) ReadBlock() ([]complex128, error) {
+	return s.readBlock(s.in, s.blockSize)
 }
 
 func readIQBlock8(in io.Reader, blocksize int) ([]complex128, error) {
