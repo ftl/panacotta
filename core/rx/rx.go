@@ -55,8 +55,8 @@ type Receiver struct {
 // FFTAvailable is called when new FFT data is available.
 type FFTAvailable func([]float64)
 
-// VFOChanged is called when the VFO setup (frequency, ROI), changes.
-type VFOChanged func(core.Frequency, core.FrequencyRange)
+// VFOChanged is called when the VFO setup (frequency, band, ROI), changes.
+type VFOChanged func(core.Frequency, bandplan.Band, core.FrequencyRange)
 
 // ViewMode of the panorama.
 type ViewMode int
@@ -126,14 +126,15 @@ func (r *Receiver) SetVFOFrequency(f core.Frequency) {
 
 func (r *Receiver) updateROI() {
 	f := r.vfoFrequency
+	if !r.vfoBand.Contains(f) {
+		band := bandplan.IARURegion1.ByFrequency(f)
+		if band.Width() > 0 {
+			r.vfoBand = band
+		}
+	}
+
 	switch r.viewMode {
 	case ViewFullBand:
-		if !r.vfoBand.Contains(f) {
-			band := bandplan.IARURegion1.ByFrequency(f)
-			if band != bandplan.UnknownBand {
-				r.vfoBand = band
-			}
-		}
 		r.vfoROI = core.FrequencyRange{From: r.vfoBand.From - 10000.0, To: r.vfoBand.To + 10000.0}
 
 	case ViewCentered:
@@ -145,7 +146,7 @@ func (r *Receiver) updateROI() {
 
 func (r *Receiver) notifyVFOChange() {
 	for _, vfoChanged := range r.vfoChangedCallbacks {
-		vfoChanged(r.vfoFrequency, r.vfoROI)
+		vfoChanged(r.vfoFrequency, r.vfoBand, r.vfoROI)
 	}
 }
 

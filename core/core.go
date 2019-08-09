@@ -22,3 +22,8 @@ func (r FrequencyRange) String() string {
 func (r *FrequencyRange) Width() Frequency {
 	return r.To - r.From
 }
+
+// Contains the given frequency.
+func (r *FrequencyRange) Contains(f Frequency) bool {
+	return f >= r.From && f <= r.To
+}

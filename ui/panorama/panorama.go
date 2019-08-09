@@ -10,6 +10,7 @@ import (
 	"github.com/gotk3/gotk3/gtk"
 
 	"github.com/ftl/panacotta/core"
+	"github.com/ftl/panacotta/core/bandplan"
 	"github.com/ftl/panacotta/ui"
 )
 
@@ -43,6 +44,7 @@ type View struct {
 
 	fftData      []float64
 	vfoFrequency core.Frequency
+	vfoBand      bandplan.Band
 	vfoROI       core.FrequencyRange
 	dataLock     *sync.RWMutex
 
@@ -62,10 +64,11 @@ func (v *View) SetFFTData(data []float64) {
 }
 
 // SetVFO sets the VFO configuration.
-func (v *View) SetVFO(frequency core.Frequency, roi core.FrequencyRange) {
+func (v *View) SetVFO(frequency core.Frequency, band bandplan.Band, roi core.FrequencyRange) {
 	v.dataLock.Lock()
 	defer v.dataLock.Unlock()
 	v.vfoFrequency = frequency
+	v.vfoBand = band
 	v.vfoROI = roi
 
 	v.TriggerRedraw()
@@ -94,10 +97,10 @@ func (v *View) deviceToFrequency(x float64) core.Frequency {
 }
 
 func (v *View) onDraw(da *gtk.DrawingArea, cr *cairo.Context) {
-	data, vfoFrequency, vfoROI := func() ([]float64, core.Frequency, core.FrequencyRange) {
+	data, vfoFrequency, vfoBand, vfoROI := func() ([]float64, core.Frequency, bandplan.Band, core.FrequencyRange) {
 		v.dataLock.RLock()
 		defer v.dataLock.RUnlock()
-		return v.fftData, v.vfoFrequency, v.vfoROI
+		return v.fftData, v.vfoFrequency, v.vfoBand, v.vfoROI
 	}()
 
 	blockSize := len(data)
@@ -120,6 +123,7 @@ func (v *View) onDraw(da *gtk.DrawingArea, cr *cairo.Context) {
 	dbmY := calculateInfoCoordinates(cr, m, vfoFrequency, vfoROI, maxY)
 
 	drawDBMScale(cr, dbmY, width)
+	drawModeIndicator(cr, m, vfoBand, vfoROI, height)
 	drawFreqScale(cr, m, vfoROI, height)
 	drawVFO(cr, m, vfoFrequency, vfoROI, height)
 	drawFFT(cr, m, data, hzPerBin)
@@ -162,14 +166,58 @@ func drawDBMScale(cr *cairo.Context, ys []float64, width float64) {
 	cr.SetDash([]float64{}, 0)
 }
 
+func drawModeIndicator(cr *cairo.Context, matrix *cairo.Matrix, vfoBand bandplan.Band, vfoROI core.FrequencyRange, height float64) {
+	cr.Save()
+	defer cr.Restore()
+
+	for _, p := range vfoBand.Portions {
+		cr.Save()
+		cr.Transform(matrix)
+		startX, _ := cr.UserToDeviceDistance(float64(p.From-vfoROI.From), 0)
+		endX, _ := cr.UserToDeviceDistance(float64(p.To-vfoROI.From), 0)
+		cr.Restore()
+
+		var y float64
+		lineWidth := 10.0
+		switch p.Mode {
+		case bandplan.ModeCW:
+			cr.SetSourceRGB(0.4, 0, 0.4)
+			y = lineWidth * 0.5
+		case bandplan.ModePhone:
+			cr.SetSourceRGB(0.2, 0.4, 0)
+			y = lineWidth * 0.5
+		case bandplan.ModeDigital:
+			cr.SetSourceRGB(0, 0, 0.6)
+			y = lineWidth * 0.5
+		case bandplan.ModeBeacon:
+			cr.SetSourceRGB(1, 0, 0)
+			y = lineWidth * 0.5
+		case bandplan.ModeContest:
+			cr.SetSourceRGB(0.6, 0.3, 0)
+			y = lineWidth * 1.5
+		}
+
+		cr.SetLineWidth(lineWidth)
+		cr.MoveTo(startX, y)
+		cr.LineTo(endX, y)
+		cr.Stroke()
+	}
+
+}
+
 func drawFreqScale(cr *cairo.Context, matrix *cairo.Matrix, vfoROI core.FrequencyRange, height float64) {
 	cr.Save()
 	defer cr.Restore()
 
-	fMagnitude := int(math.Pow(10, float64(int(math.Log10(float64(vfoROI.Width())))-1)))
+	fZeros := float64(int(math.Log10(float64(vfoROI.Width()))) - 1)
+	fMagnitude := int(math.Pow(10, fZeros))
 	fFactor := fMagnitude
-	for int(vfoROI.Width())/fFactor > 15 {
-		fFactor *= 2
+	for int(vfoROI.Width())/fFactor > 20 {
+		if fFactor%10 == 0 {
+			fFactor *= 5
+		} else {
+			fFactor *= 10
+		}
 	}
 
 	type freqUnit struct {
@@ -198,7 +246,7 @@ func drawFreqScale(cr *cairo.Context, matrix *cairo.Matrix, vfoROI core.Frequenc
 		cr.LineTo(u.x, height)
 		cr.Stroke()
 
-		freqText := fmt.Sprintf("%d", u.f/fMagnitude)
+		freqText := fmt.Sprintf("%.0fk", float64(u.f)/1000.0)
 		extents := cr.TextExtents(freqText)
 		cr.SetFontSize(20.0)
 		cr.MoveTo(u.x+2, extents.Height+2)
