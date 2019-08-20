@@ -1,6 +1,7 @@
 package app
 
 import (
+	"io"
 	"log"
 	"sync"
 
@@ -12,8 +13,10 @@ import (
 )
 
 // NewController returns a new instance of the AppController interface.
-func NewController() *Controller {
-	return &Controller{}
+func NewController(config core.Configuration) *Controller {
+	return &Controller{
+		config: config,
+	}
 }
 
 // PanoramaView shows FFT data, the VFO ROI, the VFO frequency.
@@ -27,8 +30,9 @@ type Controller struct {
 	done         chan struct{}
 	subProcesses *sync.WaitGroup
 
-	rx  *rx.Receiver
-	vfo *vfo.VFO
+	config core.Configuration
+	rx     *rx.Receiver
+	vfo    *vfo.VFO
 
 	panorama PanoramaView
 }
@@ -38,20 +42,23 @@ func (c *Controller) Startup() {
 	c.done = make(chan struct{})
 	c.subProcesses = new(sync.WaitGroup)
 
-	ifCenter := 67899000   // this is fix for the FT-450D
-	rxBandwidth := 1800000 // this is the sample rate
-	rxCenter := ifCenter + (rxBandwidth / 4)
-	log.Printf("rx @ %v", rxCenter)
+	// configuration
+	ifCenter := 67899000   // this is fix for the FT-450D and specific to our method
+	rxBandwidth := 1800000 // this is the sample rate and specific to our method
 
-	dongle, err := rtlsdr.Open(rxCenter, rxBandwidth, -50)
+	rxCenter := ifCenter + (rxBandwidth / 4)
+	log.Printf("RX @ %v %d ppm", rxCenter, c.config.FrequencyCorrection)
+
+	samplesInput, err := c.openSamplesInput(rxCenter, rxBandwidth, c.config.FrequencyCorrection, c.config.Testmode)
 	if err != nil {
 		log.Fatal(err)
 	}
-	c.rx = rx.New(dongle, core.Frequency(ifCenter), core.Frequency(rxCenter), core.Frequency(rxBandwidth))
+
+	c.rx = rx.New(samplesInput, core.Frequency(ifCenter), core.Frequency(rxCenter), core.Frequency(rxBandwidth))
 	c.rx.OnFFTAvailable(c.panorama.SetFFTData)
 	c.rx.OnVFOChange(c.panorama.SetVFO)
 
-	c.vfo, err = vfo.Open("afu.fritz.box:4532")
+	c.vfo, err = vfo.Open(c.config.VFOHost)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -62,6 +69,13 @@ func (c *Controller) Startup() {
 
 	c.rx.Run(c.done, c.subProcesses)
 	c.vfo.Run(c.done, c.subProcesses)
+}
+
+func (c *Controller) openSamplesInput(centerFrequency int, sampleRate int, frequencyCorrection int, testmode bool) (io.ReadCloser, error) {
+	if testmode {
+		return new(rx.RandomReader), nil
+	}
+	return rtlsdr.Open(centerFrequency, sampleRate, frequencyCorrection)
 }
 
 // Shutdown the application.

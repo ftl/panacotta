@@ -6,6 +6,7 @@ import (
 	"github.com/gotk3/gotk3/glib"
 	"github.com/gotk3/gotk3/gtk"
 
+	"github.com/ftl/panacotta/core/cfg"
 	coreapp "github.com/ftl/panacotta/core/app"
 	"github.com/ftl/panacotta/ui/panorama"
 )
@@ -50,7 +51,13 @@ func (a *application) startup() {
 func (a *application) activate() {
 	a.builder = setupBuilder()
 
-	a.controller = coreapp.NewController()
+	configuration, err := cfg.Load()
+	if err != nil {
+		log.Println(err)
+		configuration = cfg.Static()
+	}
+
+	a.controller = coreapp.NewController(configuration)
 	a.mainWindow = newMainWindow(a.builder, a.app)
 	a.controller.SetPanoramaView(panorama.New(a.builder, a.controller))
 

@@ -27,3 +27,10 @@ func (r *FrequencyRange) Width() Frequency {
 func (r *FrequencyRange) Contains(f Frequency) bool {
 	return f >= r.From && f <= r.To
 }
+
+// Configuration parameters of the application.
+type Configuration struct {
+	FrequencyCorrection int
+	Testmode            bool
+	VFOHost             string
+}
