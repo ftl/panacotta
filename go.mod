@@ -10,4 +10,5 @@ require (
 	github.com/jpoirier/gortlsdr v2.10.0+incompatible
 	github.com/mjibson/go-dsp v0.0.0-20180508042940-11479a337f12
 	github.com/pkg/errors v0.8.1
+	github.com/stretchr/testify v1.3.0
 )

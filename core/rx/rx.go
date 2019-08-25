@@ -25,6 +25,7 @@ func New(in io.ReadCloser, ifCenter, rxCenter, rxBandwidth core.Frequency) *Rece
 		rxCenter:    rxCenter,
 		rxBandwidth: rxBandwidth,
 
+		viewMode:    ViewFullSpectrum,
 		setViewMode: make(chan ViewMode),
 	}
 	return &result
@@ -65,6 +66,7 @@ type ViewMode int
 const (
 	ViewFullBand ViewMode = iota
 	ViewCentered
+	ViewFullSpectrum
 )
 
 // SampleSource provides blocks with samples.
@@ -136,12 +138,18 @@ func (r *Receiver) updateROI() {
 	switch r.viewMode {
 	case ViewFullBand:
 		r.vfoROI = core.FrequencyRange{From: r.vfoBand.From - 10000.0, To: r.vfoBand.To + 10000.0}
+		r.rxROI = core.FrequencyRange{From: r.vfoToRx(r.vfoROI.From), To: r.vfoToRx(r.vfoROI.To)}
 
 	case ViewCentered:
 		r.vfoROI = core.FrequencyRange{From: f - 20000, To: f + 20000}
-	}
+		r.rxROI = core.FrequencyRange{From: r.vfoToRx(r.vfoROI.From), To: r.vfoToRx(r.vfoROI.To)}
 
-	r.rxROI = core.FrequencyRange{From: r.vfoToRx(r.vfoROI.From), To: r.vfoToRx(r.vfoROI.To)}
+	case ViewFullSpectrum:
+		r.rxROI = core.FrequencyRange{From: 0, To: r.rxBandwidth}
+		r.vfoROI = core.FrequencyRange{From: r.rxToVFO(r.rxROI.From), To: r.rxToVFO(r.rxROI.To)}
+
+	}
+	log.Print(r.rxROI, r.vfoROI)
 }
 
 func (r *Receiver) notifyVFOChange() {
@@ -162,6 +170,10 @@ func (r *Receiver) ViewMode() ViewMode {
 
 func (r *Receiver) vfoToRx(f core.Frequency) core.Frequency {
 	return core.Frequency(r.rxBandwidth/2) - (r.vfoFrequency - f) - (r.ifCenter - r.rxCenter)
+}
+
+func (r *Receiver) rxToVFO(f core.Frequency) core.Frequency {
+	return f - r.rxCenter + r.ifCenter + r.vfoFrequency - core.Frequency(r.rxBandwidth/2)
 }
 
 // OnFFTAvailable registers the given callback to be notified when new FFT data is available.
