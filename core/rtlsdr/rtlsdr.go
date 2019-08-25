@@ -85,6 +85,11 @@ func (d *Dongle) Close() error {
 }
 
 func (d *Dongle) incomingData(data []byte) {
+	if d.buffer.Len() != 0 {
+		log.Print("RTL buffer overflow, dropping incoming data")
+		return
+	}
+
 	now := time.Now()
 	d.lastInput = now
 	_, err := d.buffer.Write(data)
