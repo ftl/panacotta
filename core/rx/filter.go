@@ -1,6 +1,6 @@
 package rx
 
-var LPF180k = FIRCoefficients{
+var LPF180k = []float64{
 	-0.001502377285864444,
 	-0.001755430442807170,
 	-351.9254313414917310E-6,
@@ -35,7 +35,7 @@ var LPF180k = FIRCoefficients{
 	-0.001502377285864444,
 }
 
-var BPF180k = FIRCoefficients{
+var BPF180k = []float64{
 	-500.2224827445224380E-6,
 	0.002032803591645328,
 	0.004510916446260192,
@@ -70,7 +70,7 @@ var BPF180k = FIRCoefficients{
 	-500.2224827445224380E-6,
 }
 
-var BPF1k8 = FIRCoefficients{
+var BPF1k8 = []float64{
 	0.001382937920461239,
 	-0.002633867822386418,
 	-0.004521347437277773,
@@ -103,84 +103,4 @@ var BPF1k8 = FIRCoefficients{
 	-0.004521347437277773,
 	-0.002633867822386418,
 	0.001382937920461239,
-}
-
-type FIRCoefficients []float64
-
-func NewFIR(source SampleSource, coeff FIRCoefficients) *FIRFilter {
-	return NewDecimFIR(source, coeff, 1)
-}
-
-func NewDecimFIR(source SampleSource, coeff FIRCoefficients, decim int) *FIRFilter {
-	return &FIRFilter{
-		source: source,
-		coeff:  coeff,
-		buf:    make([]complex128, len(coeff)),
-		order:  len(coeff),
-		decim:  decim,
-	}
-}
-
-type FIRFilter struct {
-	source   SampleSource
-	coeff    FIRCoefficients
-	buf      []complex128
-	bufIndex int
-	order    int
-	decim    int
-}
-
-func (f *FIRFilter) next(in complex128) complex128 {
-	f.buf[f.bufIndex] = in
-
-	var result complex128
-	for i, c := range f.coeff {
-		result += complex(c, c) * f.buf[(f.order-i+f.bufIndex)%f.order]
-	}
-
-	f.bufIndex = (f.bufIndex + 1) % f.order
-
-	return result
-}
-
-func (f *FIRFilter) ReadBlock() ([]complex128, error) {
-	in, err := f.source.ReadBlock()
-	if err != nil {
-		return nil, err
-	}
-
-	result := make([]complex128, len(in)/f.decim)
-
-	for i := 0; i < len(in); i += f.decim {
-		result[i/f.decim] = f.next(in[i])
-	}
-
-	return result, nil
-}
-
-func NewDownsampler(source SampleSource, factor int) *Downsampler {
-	return &Downsampler{
-		source: source,
-		factor: factor,
-	}
-}
-
-type Downsampler struct {
-	source SampleSource
-	factor int
-}
-
-func (d *Downsampler) ReadBlock() ([]complex128, error) {
-	in, err := d.source.ReadBlock()
-	if err != nil {
-		return nil, err
-	}
-
-	result := make([]complex128, len(in)/d.factor)
-
-	for i := 0; i < len(in); i += d.factor {
-		result[i/d.factor] = in[i]
-	}
-
-	return result, nil
 }

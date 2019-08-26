@@ -25,7 +25,7 @@ func New(in io.ReadCloser, ifCenter, rxCenter, rxBandwidth core.Frequency) *Rece
 		rxCenter:    rxCenter,
 		rxBandwidth: rxBandwidth,
 
-		viewMode:    ViewFullSpectrum,
+		// viewMode:    ViewFullSpectrum,
 		setViewMode: make(chan ViewMode),
 	}
 	return &result
@@ -41,10 +41,11 @@ type Receiver struct {
 	vfoBand      bandplan.Band       // depends on the vfoFrequency
 	vfoROI       core.FrequencyRange // depends on vfoFrequency
 
-	ifCenter    core.Frequency      // fix, corresponds to the vfoFrequency in the IF range
-	rxCenter    core.Frequency      // fix
-	rxBandwidth core.Frequency      // == sample rate, fix
-	rxROI       core.FrequencyRange // corresponds to the vfoROI in the IF range
+	ifCenter           core.Frequency      // fix, corresponds to the vfoFrequency in the IF range
+	rxCenter           core.Frequency      // fix
+	rxBandwidth        core.Frequency      // == sample rate, fix
+	rxROI              core.FrequencyRange // corresponds to the vfoROI in the IF range
+	processedBandwidth core.Frequency      // depends on the DSP processing, < rxBandwidth
 
 	fftAvailableCallbacks []FFTAvailable
 	vfoChangedCallbacks   []VFOChanged
@@ -77,9 +78,25 @@ type SampleSource interface {
 // Run this receiver.
 func (r *Receiver) Run(stop chan struct{}, wait *sync.WaitGroup) {
 	wait.Add(1)
+
+	incomingBlockSize := 131072
+	dspIn, dspOut := buildPipeline(
+		incomingBlockSize,
+		downsample(8),
+		shift(float64(r.ifCenter-r.rxCenter)*float64(incomingBlockSize)/float64(r.rxBandwidth)),
+		fir(LPF180k),
+	)
+	processedBlock := accumulateSamples(dspOut)
+	downsamplingRate := cap(dspIn) / cap(dspOut)
+	r.processedBandwidth = r.rxBandwidth / core.Frequency(downsamplingRate)
+
+	log.Printf("shift by %v", float64(r.ifCenter-r.rxCenter))
+	log.Printf("downsampling by %v", downsamplingRate)
+
 	go func() {
 		defer wait.Done()
 		defer r.shutdown()
+		defer close(dspIn)
 
 		for {
 			select {
@@ -93,8 +110,11 @@ func (r *Receiver) Run(stop chan struct{}, wait *sync.WaitGroup) {
 					continue
 				}
 
+				serializeBlock(dspIn, block)
+				block = <-processedBlock
+
 				blockSize := len(block)
-				hzPerBin := r.rxBandwidth / core.Frequency(blockSize)
+				hzPerBin := r.processedBandwidth / core.Frequency(blockSize)
 
 				fromBin := int(r.rxROI.From / hzPerBin)
 				toBin := int(r.rxROI.To / hzPerBin)
@@ -145,7 +165,7 @@ func (r *Receiver) updateROI() {
 		r.rxROI = core.FrequencyRange{From: r.vfoToRx(r.vfoROI.From), To: r.vfoToRx(r.vfoROI.To)}
 
 	case ViewFullSpectrum:
-		r.rxROI = core.FrequencyRange{From: 0, To: r.rxBandwidth}
+		r.rxROI = core.FrequencyRange{From: 0, To: r.processedBandwidth}
 		r.vfoROI = core.FrequencyRange{From: r.rxToVFO(r.rxROI.From), To: r.rxToVFO(r.rxROI.To)}
 
 	}
@@ -169,11 +189,11 @@ func (r *Receiver) ViewMode() ViewMode {
 }
 
 func (r *Receiver) vfoToRx(f core.Frequency) core.Frequency {
-	return core.Frequency(r.rxBandwidth/2) - (r.vfoFrequency - f) - (r.ifCenter - r.rxCenter)
+	return core.Frequency(r.processedBandwidth/2) - (r.vfoFrequency - f) // - (r.ifCenter - r.rxCenter)
 }
 
 func (r *Receiver) rxToVFO(f core.Frequency) core.Frequency {
-	return f - r.rxCenter + r.ifCenter + r.vfoFrequency - core.Frequency(r.rxBandwidth/2)
+	return f + r.vfoFrequency - core.Frequency(r.processedBandwidth/2) // + (r.ifCenter - r.rxCenter)
 }
 
 // OnFFTAvailable registers the given callback to be notified when new FFT data is available.
