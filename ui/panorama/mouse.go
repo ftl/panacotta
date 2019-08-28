@@ -35,8 +35,8 @@ func (v *View) onButtonPress(da *gtk.DrawingArea, e *gdk.Event) {
 	buttonEvent := gdk.EventButtonNewFromEvent(e)
 	if v.mouse.buttonPressed {
 		switch v.mouse.button {
-		case 1:
-			v.controller.ToggleViewMode()
+		default:
+			log.Printf("double click %d", v.mouse.button)
 		}
 		return
 	}
@@ -48,6 +48,10 @@ func (v *View) onButtonPress(da *gtk.DrawingArea, e *gdk.Event) {
 	switch v.mouse.button {
 	case 1:
 		v.controller.Tune(v.deviceToFrequency(v.mouse.startX))
+	case 2:
+		v.controller.ToggleViewMode()
+	default:
+		log.Printf("click %d", v.mouse.button)
 	}
 }
 
