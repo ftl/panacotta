@@ -10,7 +10,7 @@ import (
 )
 
 // Open the RTL-SDR dongle for reading.
-func Open(centerFrequency int, sampleRate int, frequencyCorrection int) (*Dongle, error) {
+func Open(centerFrequency int, sampleRate int, blockSize int, frequencyCorrection int) (*Dongle, error) {
 	device, err := rtl.Open(0)
 	if err != nil {
 		return nil, err
@@ -52,7 +52,7 @@ func Open(centerFrequency int, sampleRate int, frequencyCorrection int) (*Dongle
 
 	go func() {
 		result.asyncRead.Add(1)
-		result.device.ReadAsync(result.incomingData, nil, 0, 0)
+		result.device.ReadAsync(result.incomingData, nil, 0, blockSize*2)
 		result.asyncRead.Done()
 	}()
 
@@ -62,6 +62,7 @@ func Open(centerFrequency int, sampleRate int, frequencyCorrection int) (*Dongle
 // Dongle represents the RTL-SDR dongle.
 type Dongle struct {
 	device    *rtl.Context
+	blockSize int
 	buffer    bytes.Buffer
 	asyncRead *sync.WaitGroup
 	lastInput time.Time

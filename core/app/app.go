@@ -45,16 +45,17 @@ func (c *Controller) Startup() {
 	// configuration
 	ifCenter := 67899000   // this is fix for the FT-450D and specific to our method
 	rxBandwidth := 1800000 // this is the sample rate and specific to our method
+	blockSize := 32768     // 131072    // this is the number of *complex* samples in one block
 
 	rxCenter := ifCenter + (rxBandwidth / 4)
 	log.Printf("RX @ %v %d ppm", rxCenter, c.config.FrequencyCorrection)
 
-	samplesInput, err := c.openSamplesInput(rxCenter, rxBandwidth, c.config.FrequencyCorrection, c.config.Testmode)
+	samplesInput, err := c.openSamplesInput(rxCenter, rxBandwidth, blockSize, c.config.FrequencyCorrection, c.config.Testmode)
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	c.rx = rx.New(samplesInput, core.Frequency(ifCenter), core.Frequency(rxCenter), core.Frequency(rxBandwidth))
+	c.rx = rx.New(samplesInput, blockSize, core.Frequency(ifCenter), core.Frequency(rxCenter), core.Frequency(rxBandwidth))
 	c.rx.OnFFTAvailable(c.panorama.SetFFTData)
 	c.rx.OnVFOChange(c.panorama.SetVFO)
 
@@ -71,11 +72,11 @@ func (c *Controller) Startup() {
 	c.vfo.Run(c.done, c.subProcesses)
 }
 
-func (c *Controller) openSamplesInput(centerFrequency int, sampleRate int, frequencyCorrection int, testmode bool) (io.ReadCloser, error) {
+func (c *Controller) openSamplesInput(centerFrequency int, sampleRate int, blockSize int, frequencyCorrection int, testmode bool) (io.ReadCloser, error) {
 	if testmode {
 		return new(rx.RandomReader), nil
 	}
-	return rtlsdr.Open(centerFrequency, sampleRate, frequencyCorrection)
+	return rtlsdr.Open(centerFrequency, sampleRate, blockSize, frequencyCorrection)
 }
 
 // Shutdown the application.

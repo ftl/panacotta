@@ -13,11 +13,12 @@ import (
 )
 
 // New instance of the receiver.
-func New(in io.ReadCloser, ifCenter, rxCenter, rxBandwidth core.Frequency) *Receiver {
+func New(in io.ReadCloser, blockSize int, ifCenter, rxCenter, rxBandwidth core.Frequency) *Receiver {
 	result := Receiver{
-		in:      in,
-		samples: &samplesInput{in: in, blockSize: 131072, readBlock: readIQBlock8},
-		fft:     newFFT(),
+		in:               in,
+		samples:          &samplesInput{in: in, blockSize: blockSize, readBlock: readIQBlock8},
+		samplesBlockSize: blockSize,
+		fft:              newFFT(),
 
 		vfoBand: bandplan.UnknownBand,
 
@@ -33,9 +34,10 @@ func New(in io.ReadCloser, ifCenter, rxCenter, rxBandwidth core.Frequency) *Rece
 
 // Receiver type
 type Receiver struct {
-	in      io.ReadCloser
-	samples SampleSource
-	fft     *fft
+	in               io.ReadCloser
+	samples          SampleSource
+	samplesBlockSize int
+	fft              *fft
 
 	vfoFrequency core.Frequency      // updated from outside
 	vfoBand      bandplan.Band       // depends on the vfoFrequency
@@ -79,12 +81,12 @@ type SampleSource interface {
 func (r *Receiver) Run(stop chan struct{}, wait *sync.WaitGroup) {
 	wait.Add(1)
 
-	incomingBlockSize := 131072
+	samplesFrequencyScale := float64(r.samplesBlockSize) / float64(r.rxBandwidth)
 	dspIn, dspOut := buildPipeline(
-		incomingBlockSize,
-		downsample(8),
-		shift(float64(r.ifCenter-r.rxCenter)*float64(incomingBlockSize)/float64(r.rxBandwidth)),
-		fir(LPF180k),
+		r.samplesBlockSize,
+		// cfir(shiftFIR(LPF180k, float64(r.rxCenter-r.ifCenter)*samplesFrequencyScale, r.samplesBlockSize)),
+		shift(float64(r.ifCenter-r.rxCenter)*samplesFrequencyScale),
+		// downsample(4),
 	)
 	processedBlock := accumulateSamples(dspOut)
 	downsamplingRate := cap(dspIn) / cap(dspOut)
@@ -98,6 +100,8 @@ func (r *Receiver) Run(stop chan struct{}, wait *sync.WaitGroup) {
 		defer r.shutdown()
 		defer close(dspIn)
 
+		lastBlock := time.Now()
+
 		for {
 			select {
 			case <-time.After(1 * time.Millisecond):
@@ -109,9 +113,14 @@ func (r *Receiver) Run(stop chan struct{}, wait *sync.WaitGroup) {
 					log.Print("Reading incoming data failed: ", err)
 					continue
 				}
+				blockTime := time.Now().Sub(lastBlock)
+				lastBlock = time.Now()
+				log.Printf("New block after %v %v", blockTime, time.Second/blockTime)
 
+				dspStart := time.Now()
 				serializeBlock(dspIn, block)
 				block = <-processedBlock
+				log.Printf("DSP %v", time.Now().Sub(dspStart))
 
 				blockSize := len(block)
 				hzPerBin := r.processedBandwidth / core.Frequency(blockSize)
@@ -119,7 +128,9 @@ func (r *Receiver) Run(stop chan struct{}, wait *sync.WaitGroup) {
 				fromBin := int(r.rxROI.From / hzPerBin)
 				toBin := int(r.rxROI.To / hzPerBin)
 
+				fftStart := time.Now()
 				_, fftdata := r.fft.calculate(block, fromBin, toBin)
+				log.Printf("FFT %v %d", time.Now().Sub(fftStart), blockSize)
 				for _, fftAvailable := range r.fftAvailableCallbacks {
 					fftAvailable(fftdata)
 				}
@@ -215,6 +226,8 @@ type samplesInput struct {
 type blockReader func(in io.Reader, blocksize int) ([]complex128, error)
 
 func (s *samplesInput) ReadBlock() ([]complex128, error) {
+	startTime := time.Now()
+	defer log.Printf("ReadBlock %v", time.Now().Sub(startTime))
 	return s.readBlock(s.in, s.blockSize)
 }
 
