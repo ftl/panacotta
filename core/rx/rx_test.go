@@ -10,7 +10,7 @@ import (
 
 func TestRXVFOFrequencyConversion(t *testing.T) {
 	f := core.Frequency(7100000)
-	rx := New(nil, 67899000, 68349000, 1800000)
+	rx := New(nil, 32768, 67899000, 68349000, 1800000)
 	rx.vfoFrequency = 7070000
 
 	actual := rx.vfoToRx(rx.rxToVFO(f))
