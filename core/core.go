@@ -34,3 +34,9 @@ type Configuration struct {
 	Testmode            bool
 	VFOHost             string
 }
+
+// SamplesInput interface.
+type SamplesInput interface {
+	Samples() <-chan []byte
+	Close() error
+}

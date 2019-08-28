@@ -1,10 +1,8 @@
 package rx
 
 import (
-	"log"
 	"math"
 	"math/cmplx"
-	"time"
 )
 
 type step func(in <-chan complex128) <-chan complex128
@@ -22,8 +20,8 @@ func buildPipeline(initialBlockSize int, steps ...step) (in chan<- complex128, o
 }
 
 func serializeBlock(to chan<- complex128, block []complex128) {
-	startTime := time.Now()
-	defer log.Printf("serializeBlock %v", time.Now().Sub(startTime))
+	// startTime := time.Now()
+	// defer log.Printf("serializeBlock %v", time.Now().Sub(startTime))
 
 	for _, s := range block {
 		to <- s

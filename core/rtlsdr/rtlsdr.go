@@ -1,7 +1,6 @@
 package rtlsdr
 
 import (
-	"bytes"
 	"log"
 	"sync"
 	"time"
@@ -48,6 +47,7 @@ func Open(centerFrequency int, sampleRate int, blockSize int, frequencyCorrectio
 	result := Dongle{
 		device:    device,
 		asyncRead: new(sync.WaitGroup),
+		samples:   make(chan []byte, 1),
 	}
 
 	go func() {
@@ -63,38 +63,29 @@ func Open(centerFrequency int, sampleRate int, blockSize int, frequencyCorrectio
 type Dongle struct {
 	device    *rtl.Context
 	blockSize int
-	buffer    bytes.Buffer
 	asyncRead *sync.WaitGroup
 	lastInput time.Time
+	samples   chan []byte
 }
 
-// Read samples from the dongle.
-func (d *Dongle) Read(p []byte) (n int, err error) {
-	for d.buffer.Len() < len(p) {
-		time.Sleep(1)
-	}
-
-	return d.buffer.Read(p)
-
+// Samples from the dongle
+func (d *Dongle) Samples() <-chan []byte {
+	return d.samples
 }
 
 // Close the dongle.
 func (d *Dongle) Close() error {
 	d.device.CancelAsync()
 	d.asyncRead.Wait()
+	close(d.samples)
 	return d.device.Close()
 }
 
 func (d *Dongle) incomingData(data []byte) {
-	if d.buffer.Len() != 0 {
+	select {
+	case d.samples <- data:
+		d.lastInput = time.Now()
+	default:
 		log.Print("RTL buffer overflow, dropping incoming data")
-		return
-	}
-
-	now := time.Now()
-	d.lastInput = now
-	_, err := d.buffer.Write(data)
-	if err != nil {
-		log.Print("Writing incoming data to buffer failed", err)
 	}
 }

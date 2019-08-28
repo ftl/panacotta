@@ -1,7 +1,6 @@
 package rx
 
 import (
-	"io"
 	"log"
 	"math"
 	"sync"
@@ -9,14 +8,13 @@ import (
 
 	"github.com/ftl/panacotta/core"
 	"github.com/ftl/panacotta/core/bandplan"
-	"github.com/pkg/errors"
 )
 
 // New instance of the receiver.
-func New(in io.ReadCloser, blockSize int, ifCenter, rxCenter, rxBandwidth core.Frequency) *Receiver {
+func New(in core.SamplesInput, blockSize int, ifCenter, rxCenter, rxBandwidth core.Frequency) *Receiver {
 	result := Receiver{
 		in:               in,
-		samples:          &samplesInput{in: in, blockSize: blockSize, readBlock: readIQBlock8},
+		readBlock:        readIQ8Block,
 		samplesBlockSize: blockSize,
 		fft:              newFFT(),
 
@@ -34,8 +32,8 @@ func New(in io.ReadCloser, blockSize int, ifCenter, rxCenter, rxBandwidth core.F
 
 // Receiver type
 type Receiver struct {
-	in               io.ReadCloser
-	samples          SampleSource
+	in               core.SamplesInput
+	readBlock        samplesReader
 	samplesBlockSize int
 	fft              *fft
 
@@ -104,23 +102,20 @@ func (r *Receiver) Run(stop chan struct{}, wait *sync.WaitGroup) {
 
 		for {
 			select {
-			case <-time.After(1 * time.Millisecond):
-				block, err := r.samples.ReadBlock()
-				if err == io.EOF {
-					log.Print("Waiting for data")
-					continue
-				} else if err != nil {
-					log.Print("Reading incoming data failed: ", err)
+			case rawBlock := <-r.in.Samples():
+				blockTime := time.Now().Sub(lastBlock)
+				blocksPerSecond := int(time.Second / blockTime)
+				if blocksPerSecond > 25 {
 					continue
 				}
-				blockTime := time.Now().Sub(lastBlock)
-				lastBlock = time.Now()
-				log.Printf("New block after %v %v", blockTime, time.Second/blockTime)
 
-				dspStart := time.Now()
-				serializeBlock(dspIn, block)
-				block = <-processedBlock
-				log.Printf("DSP %v", time.Now().Sub(dspStart))
+				lastBlock = time.Now()
+				// log.Printf("New block after %v %v", blockTime, time.Second/blockTime)
+
+				// dspStart := time.Now()
+				r.readBlock(dspIn, rawBlock)
+				block := <-processedBlock
+				// log.Printf("DSP %v", time.Now().Sub(dspStart))
 
 				blockSize := len(block)
 				hzPerBin := r.processedBandwidth / core.Frequency(blockSize)
@@ -128,9 +123,9 @@ func (r *Receiver) Run(stop chan struct{}, wait *sync.WaitGroup) {
 				fromBin := int(r.rxROI.From / hzPerBin)
 				toBin := int(r.rxROI.To / hzPerBin)
 
-				fftStart := time.Now()
+				// fftStart := time.Now()
 				_, fftdata := r.fft.calculate(block, fromBin, toBin)
-				log.Printf("FFT %v %d", time.Now().Sub(fftStart), blockSize)
+				// log.Printf("FFT %v %d", time.Now().Sub(fftStart), blockSize)
 				for _, fftAvailable := range r.fftAvailableCallbacks {
 					fftAvailable(fftdata)
 				}
@@ -217,61 +212,35 @@ func (r *Receiver) OnVFOChange(f VFOChanged) {
 	r.vfoChangedCallbacks = append(r.vfoChangedCallbacks, f)
 }
 
-type samplesInput struct {
-	in        io.Reader
-	blockSize int
-	readBlock blockReader
+type samplesReader func(chan<- complex128, []byte)
+
+func readIQ8Block(to chan<- complex128, block []byte) {
+	// startTime := time.Now()
+	// defer log.Printf("readIQ8Block %v", time.Now().Sub(startTime))
+
+	if len(block)%2 != 0 {
+		log.Printf("blocksize must be even")
+	}
+
+	for i := 0; i < len(block); i += 2 {
+		qSample := normalizeSampleUint8(block[i])
+		iSample := normalizeSampleUint8(block[i+1])
+		to <- complex(iSample, qSample)
+	}
 }
 
-type blockReader func(in io.Reader, blocksize int) ([]complex128, error)
+func readI8Block(to chan<- complex128, block []byte) {
+	// startTime := time.Now()
+	// defer log.Printf("readI8Block %v", time.Now().Sub(startTime))
 
-func (s *samplesInput) ReadBlock() ([]complex128, error) {
-	startTime := time.Now()
-	defer log.Printf("ReadBlock %v", time.Now().Sub(startTime))
-	return s.readBlock(s.in, s.blockSize)
-}
-
-func readIQBlock8(in io.Reader, blocksize int) ([]complex128, error) {
-	if blocksize%2 != 0 {
-		return []complex128{}, errors.New("blocksize must be even")
+	if len(block)%2 != 0 {
+		log.Printf("blocksize must be even")
 	}
 
-	result := make([]complex128, blocksize)
-
-	buf := make([]byte, blocksize*2)
-	_, err := in.Read(buf)
-	if err != nil {
-		return []complex128{}, errors.Wrap(err, "cannot read block of 8-bit samples")
+	for _, s := range block {
+		sample := normalizeSampleUint8(s)
+		to <- complex(sample, 0)
 	}
-
-	for i := 0; i < len(buf); i += 2 {
-		qSample := normalizeSampleUint8(buf[i])
-		iSample := normalizeSampleUint8(buf[i+1])
-		result[i/2] = complex(iSample, qSample)
-	}
-
-	return result, nil
-}
-
-func readIBlock8(in io.Reader, blocksize int) ([]complex128, error) {
-	if blocksize%2 != 0 {
-		return []complex128{}, errors.New("blocksize must be even")
-	}
-
-	result := make([]complex128, blocksize)
-
-	buf := make([]byte, blocksize)
-	_, err := in.Read(buf)
-	if err != nil {
-		return []complex128{}, errors.Wrap(err, "cannot read block of 8-bit samples")
-	}
-
-	for i := 0; i < len(buf); i++ {
-		sample := normalizeSampleUint8(buf[i])
-		result[i] = complex(sample, 0)
-	}
-
-	return result, nil
 }
 
 func normalizeSampleUint8(s byte) float64 {

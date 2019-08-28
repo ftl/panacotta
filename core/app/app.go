@@ -1,7 +1,6 @@
 package app
 
 import (
-	"io"
 	"log"
 	"sync"
 
@@ -72,10 +71,10 @@ func (c *Controller) Startup() {
 	c.vfo.Run(c.done, c.subProcesses)
 }
 
-func (c *Controller) openSamplesInput(centerFrequency int, sampleRate int, blockSize int, frequencyCorrection int, testmode bool) (io.ReadCloser, error) {
-	if testmode {
-		return new(rx.RandomReader), nil
-	}
+func (c *Controller) openSamplesInput(centerFrequency int, sampleRate int, blockSize int, frequencyCorrection int, testmode bool) (core.SamplesInput, error) {
+	// if testmode {
+	// 	return new(rx.RandomReader), nil
+	// }
 	return rtlsdr.Open(centerFrequency, sampleRate, blockSize, frequencyCorrection)
 }
 
