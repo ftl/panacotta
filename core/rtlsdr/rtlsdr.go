@@ -86,6 +86,6 @@ func (d *Dongle) incomingData(data []byte) {
 	case d.samples <- data:
 		d.lastInput = time.Now()
 	default:
-		log.Print("RTL buffer overflow, dropping incoming data")
+		// log.Print("RTL buffer overflow, dropping incoming data")
 	}
 }
