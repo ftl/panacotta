@@ -22,6 +22,7 @@ func New(in core.SamplesInput, blockSize int, ifCenter, rxCenter, rxBandwidth co
 
 		ifCenter:    ifCenter,
 		rxCenter:    rxCenter,
+		rxOffset:    ifCenter - rxCenter,
 		rxBandwidth: rxBandwidth,
 
 		// viewMode:    ViewFullSpectrum,
@@ -43,6 +44,7 @@ type Receiver struct {
 
 	ifCenter           core.Frequency      // fix, corresponds to the vfoFrequency in the IF range
 	rxCenter           core.Frequency      // fix
+	rxOffset           core.Frequency      // == r.ifCenter - r.rxCenter
 	rxBandwidth        core.Frequency      // == sample rate, fix
 	rxROI              core.FrequencyRange // corresponds to the vfoROI in the IF range
 	processedBandwidth core.Frequency      // depends on the DSP processing, < rxBandwidth
@@ -79,11 +81,11 @@ type SampleSource interface {
 func (r *Receiver) Run(stop chan struct{}, wait *sync.WaitGroup) {
 	wait.Add(1)
 
-	samplesFrequencyScale := float64(r.samplesBlockSize) / float64(r.rxBandwidth)
+	// samplesFrequencyScale := float64(r.samplesBlockSize) / float64(r.rxBandwidth)
 	dspIn, dspOut := buildPipeline(
 		r.samplesBlockSize,
-		// cfir(shiftFIR(LPF180k, float64(r.rxCenter-r.ifCenter)*samplesFrequencyScale, r.samplesBlockSize)),
-		shift(float64(r.ifCenter-r.rxCenter)*samplesFrequencyScale),
+		// cfir(shiftFIR(LPF180k, float64(r.rxOffset)*samplesFrequencyScale, r.samplesBlockSize)),
+		// shift(float64(r.rxOffset)*samplesFrequencyScale),
 		// downsample(4),
 	)
 	processedBlock := accumulateSamples(dspOut)
@@ -195,11 +197,11 @@ func (r *Receiver) ViewMode() ViewMode {
 }
 
 func (r *Receiver) vfoToRx(f core.Frequency) core.Frequency {
-	return core.Frequency(r.processedBandwidth/2) - (r.vfoFrequency - f) // - (r.ifCenter - r.rxCenter)
+	return core.Frequency(r.processedBandwidth/2) - (r.vfoFrequency - f) - r.rxOffset
 }
 
 func (r *Receiver) rxToVFO(f core.Frequency) core.Frequency {
-	return f + r.vfoFrequency - core.Frequency(r.processedBandwidth/2) // + (r.ifCenter - r.rxCenter)
+	return f + r.vfoFrequency - core.Frequency(r.processedBandwidth/2) + r.rxOffset
 }
 
 // OnFFTAvailable registers the given callback to be notified when new FFT data is available.
