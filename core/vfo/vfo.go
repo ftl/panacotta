@@ -26,7 +26,7 @@ func Open(address string) (*VFO, error) {
 		trxTimeout:      100 * time.Millisecond,
 		pollingInterval: 500 * time.Millisecond,
 		setFrequency:    make(chan core.Frequency, 10),
-		frequencyLock:   new(sync.RWMutex),
+		stateLock:       new(sync.RWMutex),
 	}
 
 	err := result.reconnect()
@@ -45,12 +45,18 @@ type VFO struct {
 	pollingInterval           time.Duration
 	setFrequency              chan core.Frequency
 	currentFrequency          core.Frequency
-	frequencyLock             *sync.RWMutex
+	currentMode               string
+	currentBandwidth          core.Frequency
+	stateLock                 *sync.RWMutex
 	frequencyChangedCallbacks []FrequencyChanged
+	modeChangedCallbacks      []ModeChanged
 }
 
 // FrequencyChanged is called on frequency changes.
 type FrequencyChanged func(f core.Frequency)
+
+// ModeChanged is called on mode changes.
+type ModeChanged func(mode string, bandwidth core.Frequency)
 
 // Run the VFO.
 func (v *VFO) Run(stop chan struct{}, wait *sync.WaitGroup) {
@@ -64,6 +70,9 @@ func (v *VFO) Run(stop chan struct{}, wait *sync.WaitGroup) {
 			select {
 			case <-time.After(v.pollingInterval):
 				err = v.pollFrequency()
+				if err == nil {
+					err = v.pollMode()
+				}
 
 			case f := <-v.setFrequency:
 				err = v.sendFrequency(f)
@@ -130,13 +139,55 @@ func (v *VFO) pollFrequency() error {
 }
 
 func (v *VFO) updateCurrentFrequency(f core.Frequency) bool {
-	v.frequencyLock.Lock()
-	defer v.frequencyLock.Unlock()
+	v.stateLock.Lock()
+	defer v.stateLock.Unlock()
 	if int(f) == int(v.currentFrequency) {
 		return false
 	}
 
 	v.currentFrequency = f
+	return true
+}
+
+func (v *VFO) pollMode() error {
+	ctx, _ := context.WithTimeout(context.Background(), v.trxTimeout)
+	request := protocol.Request{Command: protocol.ShortCommand("m")}
+	response, err := v.trx.Send(ctx, request)
+	if err != nil {
+		log.Print("polling mode failed: ", err)
+		return err
+	}
+
+	if len(response.Data) < 2 {
+		log.Printf("empty response %v", response)
+		return errors.New("empty response")
+	}
+
+	mode := response.Data[0]
+
+	bandwidth, err := hamlibToF(response.Data[1])
+	if err != nil {
+		log.Printf("wrong frequency format %s: %v", response.Data[0], err)
+		return err
+	}
+
+	if v.updateCurrentMode(mode, bandwidth) {
+		for _, modeChanged := range v.modeChangedCallbacks {
+			modeChanged(mode, bandwidth)
+		}
+	}
+	return nil
+}
+
+func (v *VFO) updateCurrentMode(mode string, bandwidth core.Frequency) bool {
+	v.stateLock.Lock()
+	defer v.stateLock.Unlock()
+	if mode == v.currentMode && int(bandwidth) == int(v.currentBandwidth) {
+		return false
+	}
+
+	v.currentMode = mode
+	v.currentBandwidth = bandwidth
 	return true
 }
 
@@ -169,14 +220,26 @@ func (v *VFO) MoveFrequency(delta core.Frequency) {
 
 // CurrentFrequency returns the current frequency of the VFO.
 func (v *VFO) CurrentFrequency() core.Frequency {
-	v.frequencyLock.RLock()
-	defer v.frequencyLock.RUnlock()
+	v.stateLock.RLock()
+	defer v.stateLock.RUnlock()
 	return v.currentFrequency
 }
 
 // OnFrequencyChange registers the given callback to be notified when the current frequency changes.
 func (v *VFO) OnFrequencyChange(f FrequencyChanged) {
 	v.frequencyChangedCallbacks = append(v.frequencyChangedCallbacks, f)
+}
+
+// CurrentMode returns the current mode and the current bandwidth of the VFO.
+func (v *VFO) CurrentMode() (string, core.Frequency) {
+	v.stateLock.RLock()
+	defer v.stateLock.RUnlock()
+	return v.currentMode, v.currentBandwidth
+}
+
+// OnModeChange registers the given callback to be notified when the current mode or bandwidth changes.
+func (v *VFO) OnModeChange(m ModeChanged) {
+	v.modeChangedCallbacks = append(v.modeChangedCallbacks, m)
 }
 
 func fToHamlib(f core.Frequency) string {

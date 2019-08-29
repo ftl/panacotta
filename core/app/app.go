@@ -66,6 +66,10 @@ func (c *Controller) Startup() {
 		log.Print("Current frequency: ", f)
 	})
 	c.vfo.OnFrequencyChange(c.rx.SetVFOFrequency)
+	c.vfo.OnModeChange(func(mode string, bandwidth core.Frequency) {
+		log.Printf("Current mode: %s bandwidth: %v", mode, bandwidth)
+	})
+	// c.vfo.OnModeChange(c.rx.SetVFOMode)
 
 	c.rx.Run(c.done, c.subProcesses)
 	c.vfo.Run(c.done, c.subProcesses)
