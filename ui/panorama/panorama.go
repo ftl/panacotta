@@ -42,16 +42,22 @@ type View struct {
 	view       *gtk.DrawingArea
 	controller Controller
 
-	fftData      []float64
-	vfoFrequency core.Frequency
-	vfoBand      bandplan.Band
-	vfoROI       core.FrequencyRange
-	dataLock     *sync.RWMutex
+	fftData  []float64
+	vfo      vfo
+	dataLock *sync.RWMutex
 
 	lastRedraw     time.Time
 	redrawInterval time.Duration
 
 	mouse mouse
+}
+
+type vfo struct {
+	frequency core.Frequency
+	band      bandplan.Band
+	roi       core.FrequencyRange
+	mode      string
+	bandwidth core.Frequency
 }
 
 // SetFFTData sets the current FFT data.
@@ -64,12 +70,14 @@ func (v *View) SetFFTData(data []float64) {
 }
 
 // SetVFO sets the VFO configuration.
-func (v *View) SetVFO(frequency core.Frequency, band bandplan.Band, roi core.FrequencyRange) {
+func (v *View) SetVFO(frequency core.Frequency, band bandplan.Band, roi core.FrequencyRange, mode string, bandwidth core.Frequency) {
 	v.dataLock.Lock()
 	defer v.dataLock.Unlock()
-	v.vfoFrequency = frequency
-	v.vfoBand = band
-	v.vfoROI = roi
+	v.vfo.frequency = frequency
+	v.vfo.band = band
+	v.vfo.roi = roi
+	v.vfo.mode = mode
+	v.vfo.bandwidth = bandwidth
 
 	v.TriggerRedraw()
 }
@@ -89,7 +97,7 @@ func (v *View) deviceToFrequency(x float64) core.Frequency {
 	vfoROI := func() core.FrequencyRange {
 		v.dataLock.RLock()
 		defer v.dataLock.RUnlock()
-		return v.vfoROI
+		return v.vfo.roi
 	}()
 	scaleX := float64(v.view.GetAllocatedWidth()) / float64(vfoROI.Width())
 
@@ -97,10 +105,10 @@ func (v *View) deviceToFrequency(x float64) core.Frequency {
 }
 
 func (v *View) onDraw(da *gtk.DrawingArea, cr *cairo.Context) {
-	data, vfoFrequency, vfoBand, vfoROI := func() ([]float64, core.Frequency, bandplan.Band, core.FrequencyRange) {
+	data, vfo := func() ([]float64, vfo) {
 		v.dataLock.RLock()
 		defer v.dataLock.RUnlock()
-		return v.fftData, v.vfoFrequency, v.vfoBand, v.vfoROI
+		return v.fftData, v.vfo
 	}()
 
 	blockSize := len(data)
@@ -108,11 +116,11 @@ func (v *View) onDraw(da *gtk.DrawingArea, cr *cairo.Context) {
 		return
 	}
 
-	hzPerBin := float64(vfoROI.Width()) / float64(blockSize)
+	hzPerBin := float64(vfo.roi.Width()) / float64(blockSize)
 
 	height, width := float64(da.GetAllocatedHeight()), float64(da.GetAllocatedWidth())
 
-	scaleX := float64(width) / float64(vfoROI.Width())
+	scaleX := float64(width) / float64(vfo.roi.Width())
 	maxY := 100.0
 
 	m := new(cairo.Matrix)
@@ -120,12 +128,12 @@ func (v *View) onDraw(da *gtk.DrawingArea, cr *cairo.Context) {
 	m.Scale(scaleX, -height/maxY)
 
 	fillBackground(cr, width, height)
-	dbmY := calculateInfoCoordinates(cr, m, vfoFrequency, vfoROI, maxY)
+	dbmY := calculateInfoCoordinates(cr, m, vfo.frequency, vfo.roi, maxY)
 
 	drawDBMScale(cr, dbmY, width)
-	drawModeIndicator(cr, m, vfoBand, vfoROI, height)
-	drawFreqScale(cr, m, vfoROI, height)
-	drawVFO(cr, m, vfoFrequency, vfoROI, height)
+	drawModeIndicator(cr, m, vfo.band, vfo.roi, height)
+	drawFreqScale(cr, m, vfo.roi, height)
+	drawVFO(cr, m, vfo, height)
 	drawFFT(cr, m, data, hzPerBin)
 }
 
@@ -282,13 +290,15 @@ func drawFFTLine(cr *cairo.Context, line []float64, hzPerBin float64) {
 	cr.LineTo(float64((len(line)-1))*hzPerBin, 0)
 }
 
-func drawVFO(cr *cairo.Context, matrix *cairo.Matrix, vfoFrequency core.Frequency, vfoROI core.FrequencyRange, height float64) {
+func drawVFO(cr *cairo.Context, matrix *cairo.Matrix, vfo vfo, height float64) {
 	cr.Save()
 	defer cr.Restore()
 
 	cr.Save()
 	cr.Transform(matrix)
-	vfoX, _ := cr.UserToDeviceDistance(float64(vfoFrequency-vfoROI.From), 0)
+	vfoX, _ := cr.UserToDeviceDistance(float64(vfo.frequency-vfo.roi.From), 0)
+	bandwidthFromX, _ := cr.UserToDeviceDistance(float64(vfo.frequency-(vfo.bandwidth/2)-vfo.roi.From), 0)
+	bandwidth, _ := cr.UserToDeviceDistance(float64(vfo.bandwidth), 0)
 	cr.Restore()
 
 	cr.SetLineWidth(1.5)
@@ -297,8 +307,12 @@ func drawVFO(cr *cairo.Context, matrix *cairo.Matrix, vfoFrequency core.Frequenc
 	cr.LineTo(vfoX, height)
 	cr.Stroke()
 
+	cr.SetSourceRGBA(0.6, 0.9, 1.0, 0.2)
+	cr.Rectangle(bandwidthFromX, 0, bandwidth, height)
+	cr.Fill()
+
 	cr.SetFontSize(20.0)
-	freqText := fmt.Sprintf("%.2fkHz", vfoFrequency/1000)
+	freqText := fmt.Sprintf("%.2fkHz", vfo.frequency/1000)
 	vfoExtents := cr.TextExtents("VFO")
 	freqExtents := cr.TextExtents(freqText)
 	padding := 4.0

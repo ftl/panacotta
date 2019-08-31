@@ -21,7 +21,7 @@ func NewController(config core.Configuration) *Controller {
 // PanoramaView shows FFT data, the VFO ROI, the VFO frequency.
 type PanoramaView interface {
 	SetFFTData([]float64)
-	SetVFO(frequency core.Frequency, band bandplan.Band, roi core.FrequencyRange)
+	SetVFO(frequency core.Frequency, band bandplan.Band, roi core.FrequencyRange, mode string, bandwidth core.Frequency)
 }
 
 // Controller for the application.
@@ -69,7 +69,7 @@ func (c *Controller) Startup() {
 	c.vfo.OnModeChange(func(mode string, bandwidth core.Frequency) {
 		log.Printf("Current mode: %s bandwidth: %v", mode, bandwidth)
 	})
-	// c.vfo.OnModeChange(c.rx.SetVFOMode)
+	c.vfo.OnModeChange(c.rx.SetVFOMode)
 
 	c.rx.Run(c.done, c.subProcesses)
 	c.vfo.Run(c.done, c.subProcesses)
@@ -113,9 +113,9 @@ func (c *Controller) FineTuneDown() {
 // ToggleViewMode of the panorama view.
 func (c *Controller) ToggleViewMode() {
 	switch c.rx.ViewMode() {
-	case rx.ViewFullBand:
+	case rx.ViewFixed:
 		c.rx.SetViewMode(rx.ViewCentered)
 	case rx.ViewCentered:
-		c.rx.SetViewMode(rx.ViewFullBand)
+		c.rx.SetViewMode(rx.ViewFixed)
 	}
 }

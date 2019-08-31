@@ -41,6 +41,8 @@ type Receiver struct {
 	vfoFrequency core.Frequency      // updated from outside
 	vfoBand      bandplan.Band       // depends on the vfoFrequency
 	vfoROI       core.FrequencyRange // depends on vfoFrequency
+	vfoMode      string              // updated from outside
+	vfoBandwidth core.Frequency      // updated from outside
 
 	ifCenter           core.Frequency      // fix, corresponds to the vfoFrequency in the IF range
 	rxCenter           core.Frequency      // fix
@@ -59,15 +61,15 @@ type Receiver struct {
 // FFTAvailable is called when new FFT data is available.
 type FFTAvailable func([]float64)
 
-// VFOChanged is called when the VFO setup (frequency, band, ROI), changes.
-type VFOChanged func(core.Frequency, bandplan.Band, core.FrequencyRange)
+// VFOChanged is called when the VFO setup (frequency, band, ROI, mode, bandwidth), changes.
+type VFOChanged func(core.Frequency, bandplan.Band, core.FrequencyRange, string, core.Frequency)
 
 // ViewMode of the panorama.
 type ViewMode int
 
 // All view modes.
 const (
-	ViewFullBand ViewMode = iota
+	ViewFixed ViewMode = iota
 	ViewCentered
 	ViewFullSpectrum
 )
@@ -154,6 +156,13 @@ func (r *Receiver) SetVFOFrequency(f core.Frequency) {
 	r.notifyVFOChange()
 }
 
+// SetVFOMode sets the VFO's current mode and bandwidth
+func (r *Receiver) SetVFOMode(mode string, bandwidth core.Frequency) {
+	r.vfoMode = mode
+	r.vfoBandwidth = bandwidth
+	r.notifyVFOChange()
+}
+
 func (r *Receiver) updateROI() {
 	f := r.vfoFrequency
 	if !r.vfoBand.Contains(f) {
@@ -164,7 +173,7 @@ func (r *Receiver) updateROI() {
 	}
 
 	switch r.viewMode {
-	case ViewFullBand:
+	case ViewFixed:
 		r.vfoROI = core.FrequencyRange{From: r.vfoBand.From - 10000.0, To: r.vfoBand.To + 10000.0}
 		r.rxROI = core.FrequencyRange{From: r.vfoToRx(r.vfoROI.From), To: r.vfoToRx(r.vfoROI.To)}
 
@@ -182,7 +191,7 @@ func (r *Receiver) updateROI() {
 
 func (r *Receiver) notifyVFOChange() {
 	for _, vfoChanged := range r.vfoChangedCallbacks {
-		vfoChanged(r.vfoFrequency, r.vfoBand, r.vfoROI)
+		vfoChanged(r.vfoFrequency, r.vfoBand, r.vfoROI, r.vfoMode, r.vfoBandwidth)
 	}
 }
 
