@@ -301,29 +301,27 @@ func drawVFO(cr *cairo.Context, matrix *cairo.Matrix, vfo vfo, height float64) {
 	bandwidth, _ := cr.UserToDeviceDistance(float64(vfo.bandwidth), 0)
 	cr.Restore()
 
-	cr.SetLineWidth(1.5)
-	cr.SetSourceRGB(0.6, 0.9, 1.0)
-	cr.MoveTo(vfoX, 0)
-	cr.LineTo(vfoX, height)
-	cr.Stroke()
-
-	cr.SetSourceRGBA(0.6, 0.9, 1.0, 0.2)
-	cr.Rectangle(bandwidthFromX, 0, bandwidth, height)
-	cr.Fill()
-
 	cr.SetFontSize(20.0)
 	freqText := fmt.Sprintf("%.2fkHz", vfo.frequency/1000)
 	vfoExtents := cr.TextExtents("VFO")
 	freqExtents := cr.TextExtents(freqText)
 	padding := 4.0
-
 	boxWidth := math.Max(vfoExtents.Width, freqExtents.Width) + 2*padding
 	boxHeight := vfoExtents.Height + freqExtents.Height + 3*padding
 
-	cr.SetLineWidth(1.5)
-	cr.SetSourceRGBA(0.6, 0.9, 1.0, 0.5)
+	cr.SetSourceRGBA(0.6, 0.9, 1.0, 0.2)
+	cr.Rectangle(bandwidthFromX, 0, bandwidth, height)
+	cr.Fill()
+
+	cr.SetSourceRGBA(0, 0, 0, 0.75)
 	cr.Rectangle(vfoX, 0, boxWidth, boxHeight)
 	cr.Fill()
+
+	cr.SetLineWidth(1.5)
+	cr.SetSourceRGB(0.6, 0.9, 1.0)
+	cr.MoveTo(vfoX, 0)
+	cr.LineTo(vfoX, height)
+	cr.Stroke()
 
 	cr.SetSourceRGB(0.6, 0.9, 1.0)
 	cr.MoveTo(vfoX+padding, vfoExtents.Height+padding)
