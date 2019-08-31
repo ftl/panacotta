@@ -10,6 +10,7 @@ import (
 
 type mouse struct {
 	buttonPressed  bool
+	doublePressed  bool
 	startX, startY float64
 	button         uint
 	dragThreshold  float64
@@ -34,32 +35,44 @@ func (v *View) connectMouse() {
 func (v *View) onButtonPress(da *gtk.DrawingArea, e *gdk.Event) {
 	buttonEvent := gdk.EventButtonNewFromEvent(e)
 	if v.mouse.buttonPressed {
-		switch v.mouse.button {
-		default:
-			log.Printf("double click %d", v.mouse.button)
-		}
+		v.mouse.doublePressed = true
 		return
 	}
 
 	v.mouse.buttonPressed = true
 	v.mouse.startX, v.mouse.startY = buttonEvent.X(), buttonEvent.Y()
 	v.mouse.button = buttonEvent.Button()
+}
 
-	switch v.mouse.button {
+func (v *View) onButtonRelease(da *gtk.DrawingArea, e *gdk.Event) {
+	if v.mouse.doublePressed {
+		v.onDoubleClick(v.mouse.button)
+	} else if v.mouse.dragging {
+		log.Printf("drag end")
+	} else if v.mouse.buttonPressed {
+		v.onClick(v.mouse.button)
+	}
+
+	v.mouse.buttonPressed = false
+	v.mouse.doublePressed = false
+	v.mouse.startX, v.mouse.startY = 0, 0
+	v.mouse.button = 0
+	v.mouse.dragging = false
+}
+
+func (v *View) onClick(button uint) {
+	switch button {
 	case 1:
 		v.controller.Tune(v.deviceToFrequency(v.mouse.startX))
 	case 2:
 		v.controller.ToggleViewMode()
 	default:
-		log.Printf("click %d", v.mouse.button)
+		log.Printf("click %d", button)
 	}
 }
 
-func (v *View) onButtonRelease(da *gtk.DrawingArea, e *gdk.Event) {
-	v.mouse.buttonPressed = false
-	v.mouse.startX, v.mouse.startY = 0, 0
-	v.mouse.button = 0
-	v.mouse.dragging = false
+func (v *View) onDoubleClick(button uint) {
+	log.Printf("double click %d", button)
 }
 
 func (v *View) onPointerMotion(da *gtk.DrawingArea, e *gdk.Event) {
