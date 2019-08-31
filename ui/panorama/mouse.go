@@ -82,9 +82,9 @@ func (v *View) onScroll(da *gtk.DrawingArea, e *gdk.Event) {
 	scrollEvent := gdk.EventScrollNewFromEvent(e)
 	switch scrollEvent.Direction() {
 	case gdk.SCROLL_UP:
-		v.controller.FineTuneUp()
+		v.controller.TuneUp()
 	case gdk.SCROLL_DOWN:
-		v.controller.FineTuneDown()
+		v.controller.TuneDown()
 	default:
 		log.Printf("unknown scroll direction %d", scrollEvent.Direction())
 	}

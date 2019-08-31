@@ -3,6 +3,7 @@ package app
 import (
 	"log"
 	"sync"
+	"time"
 
 	"github.com/ftl/panacotta/core"
 	"github.com/ftl/panacotta/core/bandplan"
@@ -29,9 +30,10 @@ type Controller struct {
 	done         chan struct{}
 	subProcesses *sync.WaitGroup
 
-	config core.Configuration
-	rx     *rx.Receiver
-	vfo    *vfo.VFO
+	config       core.Configuration
+	rx           *rx.Receiver
+	vfo          *vfo.VFO
+	lastDialTune time.Time
 
 	panorama PanoramaView
 }
@@ -98,16 +100,28 @@ func (c *Controller) Tune(f core.Frequency) {
 	c.vfo.SetFrequency(core.Frequency(int(f/10) * 10))
 }
 
-// FineTuneUp moves the VFO frequency 10Hz upwards.
-func (c *Controller) FineTuneUp() {
-	log.Print("fine tune up")
-	c.vfo.MoveFrequency(10)
+// TuneUp moves the VFO frequency 10Hz upwards.
+func (c *Controller) TuneUp() {
+	log.Print("tune up")
+	delta := c.tuneDial()
+	c.vfo.MoveFrequency(delta)
 }
 
-// FineTuneDown moves the VFO frequency 10Hz downwards.
-func (c *Controller) FineTuneDown() {
-	log.Print("fine tune down")
-	c.vfo.MoveFrequency(-10)
+// TuneDown moves the VFO frequency 10Hz downwards.
+func (c *Controller) TuneDown() {
+	log.Print("tune down")
+	delta := c.tuneDial()
+	c.vfo.MoveFrequency(-delta)
+}
+
+func (c *Controller) tuneDial() core.Frequency {
+	now := time.Now()
+	defer func() {
+		c.lastDialTune = now
+	}()
+	rate := int(time.Second / now.Sub(c.lastDialTune))
+	plus := (rate / 10) * 100
+	return core.Frequency(10 + plus)
 }
 
 // ToggleViewMode of the panorama view.
