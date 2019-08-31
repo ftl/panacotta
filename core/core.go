@@ -33,6 +33,7 @@ type Configuration struct {
 	FrequencyCorrection int
 	Testmode            bool
 	VFOHost             string
+	FFTPerSecond        int
 }
 
 // SamplesInput interface.

@@ -11,12 +11,13 @@ import (
 )
 
 // New instance of the receiver.
-func New(in core.SamplesInput, blockSize int, ifCenter, rxCenter, rxBandwidth core.Frequency) *Receiver {
+func New(in core.SamplesInput, blockSize int, ifCenter, rxCenter, rxBandwidth core.Frequency, fftPerSecond int) *Receiver {
 	result := Receiver{
 		in:               in,
 		readBlock:        readIQ8Block,
 		samplesBlockSize: blockSize,
 		fft:              newFFT(),
+		fftPerSecond:     fftPerSecond,
 
 		vfoBand: bandplan.UnknownBand,
 
@@ -37,6 +38,7 @@ type Receiver struct {
 	readBlock        samplesReader
 	samplesBlockSize int
 	fft              *fft
+	fftPerSecond     int
 
 	vfoFrequency core.Frequency      // updated from outside
 	vfoBand      bandplan.Band       // depends on the vfoFrequency
@@ -94,9 +96,6 @@ func (r *Receiver) Run(stop chan struct{}, wait *sync.WaitGroup) {
 	downsamplingRate := cap(dspIn) / cap(dspOut)
 	r.processedBandwidth = r.rxBandwidth / core.Frequency(downsamplingRate)
 
-	log.Printf("shift by %v", float64(r.ifCenter-r.rxCenter))
-	log.Printf("downsampling by %v", downsamplingRate)
-
 	go func() {
 		defer wait.Done()
 		defer r.shutdown()
@@ -109,7 +108,7 @@ func (r *Receiver) Run(stop chan struct{}, wait *sync.WaitGroup) {
 			case rawBlock := <-r.in.Samples():
 				blockTime := time.Now().Sub(lastBlock)
 				blocksPerSecond := int(time.Second / blockTime)
-				if blocksPerSecond > 25 {
+				if blocksPerSecond > r.fftPerSecond {
 					continue
 				}
 

@@ -50,13 +50,14 @@ func (c *Controller) Startup() {
 
 	rxCenter := ifCenter + (rxBandwidth / 4)
 	log.Printf("RX @ %v %d ppm", rxCenter, c.config.FrequencyCorrection)
+	log.Printf("FFT per second: %d", c.config.FFTPerSecond)
 
 	samplesInput, err := c.openSamplesInput(rxCenter, rxBandwidth, blockSize, c.config.FrequencyCorrection, c.config.Testmode)
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	c.rx = rx.New(samplesInput, blockSize, core.Frequency(ifCenter), core.Frequency(rxCenter), core.Frequency(rxBandwidth))
+	c.rx = rx.New(samplesInput, blockSize, core.Frequency(ifCenter), core.Frequency(rxCenter), core.Frequency(rxBandwidth), c.config.FFTPerSecond)
 	c.rx.OnFFTAvailable(c.panorama.SetFFTData)
 	c.rx.OnVFOChange(c.panorama.SetVFO)
 
