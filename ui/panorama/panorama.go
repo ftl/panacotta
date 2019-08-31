@@ -317,26 +317,17 @@ func drawVFO(cr *cairo.Context, matrix *cairo.Matrix, vfo vfo, height float64) {
 	freqExtents := cr.TextExtents(freqText)
 	padding := 4.0
 
+	boxWidth := math.Max(vfoExtents.Width, freqExtents.Width) + 2*padding
+	boxHeight := vfoExtents.Height + freqExtents.Height + 3*padding
+
 	cr.SetLineWidth(1.5)
-	cr.SetSourceRGBA(0, 0, 0, 0.5)
-	cr.MoveTo(vfoX, 0)
-	cr.LineTo(vfoX+math.Max(vfoExtents.Width, freqExtents.Width)+2*padding, 0)
-	cr.LineTo(vfoX+math.Max(vfoExtents.Width, freqExtents.Width)+2*padding, vfoExtents.Height+freqExtents.Height+2*padding)
-	cr.LineTo(vfoX, vfoExtents.Height+freqExtents.Height+2*padding)
-	cr.ClosePath()
+	cr.SetSourceRGBA(0.6, 0.9, 1.0, 0.5)
+	cr.Rectangle(vfoX, 0, boxWidth, boxHeight)
 	cr.Fill()
 
-	cr.SetLineWidth(1.5)
 	cr.SetSourceRGB(0.6, 0.9, 1.0)
-	cr.MoveTo(vfoX, 0)
-	cr.LineTo(vfoX+math.Max(vfoExtents.Width, freqExtents.Width)+2*padding, 0)
-	cr.LineTo(vfoX+math.Max(vfoExtents.Width, freqExtents.Width)+2*padding, vfoExtents.Height+freqExtents.Height+2*padding)
-	cr.LineTo(vfoX, vfoExtents.Height+freqExtents.Height+2*padding)
-	cr.ClosePath()
-	cr.Stroke()
-
 	cr.MoveTo(vfoX+padding, vfoExtents.Height+padding)
 	cr.ShowText("VFO")
-	cr.MoveTo(vfoX+padding, vfoExtents.Height+freqExtents.Height+padding)
+	cr.MoveTo(vfoX+padding, vfoExtents.Height+freqExtents.Height+2*padding)
 	cr.ShowText(freqText)
 }
