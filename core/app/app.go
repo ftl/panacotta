@@ -2,6 +2,7 @@ package app
 
 import (
 	"log"
+	"math"
 	"sync"
 	"time"
 
@@ -122,8 +123,10 @@ func (c *Controller) tuneDial() core.Frequency {
 		c.lastDialTune = now
 	}()
 	rate := int(time.Second / now.Sub(c.lastDialTune))
-	plus := (rate / 10) * 100
-	return core.Frequency(10 + plus)
+	a := 0.3
+	max := 500.0
+	delta := (int(math.Min(math.Pow(a*float64(rate), 2), max))/10 + 1) * 10
+	return core.Frequency(delta)
 }
 
 // ToggleViewMode of the panorama view.
