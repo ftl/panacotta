@@ -79,9 +79,10 @@ func (c *Controller) Startup() {
 }
 
 func (c *Controller) openSamplesInput(centerFrequency int, sampleRate int, blockSize int, frequencyCorrection int, testmode bool) (core.SamplesInput, error) {
-	// if testmode {
-	// 	return new(rx.RandomReader), nil
-	// }
+	if testmode {
+		log.Printf("Testmode, using random samples input")
+		return rx.NewRandomInput(blockSize), nil
+	}
 	return rtlsdr.Open(centerFrequency, sampleRate, blockSize, frequencyCorrection)
 }
 
