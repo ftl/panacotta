@@ -49,7 +49,7 @@ func (c *Controller) Startup() {
 	rxBandwidth := 1800000 // this is the sample rate and specific to our method
 	blockSize := 32768     // 131072    // this is the number of *complex* samples in one block
 
-	rxCenter := ifCenter + (rxBandwidth / 4)
+	rxCenter := ifCenter - (rxBandwidth / 4)
 	log.Printf("RX @ %v %d ppm", rxCenter, c.config.FrequencyCorrection)
 	log.Printf("FFT per second: %d", c.config.FFTPerSecond)
 
