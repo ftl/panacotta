@@ -18,14 +18,17 @@ type mouse struct {
 }
 
 func (v *View) connectMouse() {
+	log.Print("connect mouse")
 	v.mouse = mouse{
 		dragThreshold: 10.0,
 	}
 
-	v.view.AddEvents(int(gdk.BUTTON_PRESS_MASK))
-	v.view.AddEvents(int(gdk.BUTTON_RELEASE_MASK))
-	v.view.AddEvents(int(gdk.POINTER_MOTION_MASK))
-	v.view.AddEvents(int(gdk.SCROLL_MASK))
+	v.view.AddEvents(
+		int(gdk.BUTTON_PRESS_MASK) |
+			int(gdk.BUTTON_RELEASE_MASK) |
+			int(gdk.POINTER_MOTION_MASK) |
+			int(gdk.SCROLL_MASK))
+
 	v.view.Connect("button-press-event", v.onButtonPress)
 	v.view.Connect("button-release-event", v.onButtonRelease)
 	v.view.Connect("motion-notify-event", v.onPointerMotion)

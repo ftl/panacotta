@@ -25,6 +25,7 @@ func New(builder *gtk.Builder, controller Controller) *View {
 	}
 	result.view.Connect("draw", result.onDraw)
 	result.connectMouse()
+	result.connectKeyboard()
 
 	return &result
 }
@@ -35,6 +36,9 @@ type Controller interface {
 	TuneUp()
 	TuneDown()
 	ToggleViewMode()
+	ZoomIn()
+	ZoomOut()
+	ResetZoom()
 }
 
 // View of the FFT.
@@ -49,7 +53,8 @@ type View struct {
 	lastRedraw     time.Time
 	redrawInterval time.Duration
 
-	mouse mouse
+	mouse    mouse
+	keyboard keyboard
 }
 
 type vfo struct {

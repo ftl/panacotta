@@ -138,3 +138,18 @@ func (c *Controller) ToggleViewMode() {
 		c.rx.SetViewMode(rx.ViewFixed)
 	}
 }
+
+// ZoomIn to the frequency range.
+func (c *Controller) ZoomIn() {
+	log.Print("zoom in")
+}
+
+// ZoomOut of the frequency range.
+func (c *Controller) ZoomOut() {
+	log.Print("zoom out")
+}
+
+// ResetZoom according to the view mode.
+func (c *Controller) ResetZoom() {
+	log.Print("reset zoom")
+}
