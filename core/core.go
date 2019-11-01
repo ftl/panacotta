@@ -19,13 +19,19 @@ func (r FrequencyRange) String() string {
 }
 
 // Width of the frequency range.
-func (r *FrequencyRange) Width() Frequency {
+func (r FrequencyRange) Width() Frequency {
 	return r.To - r.From
 }
 
 // Contains the given frequency.
-func (r *FrequencyRange) Contains(f Frequency) bool {
+func (r FrequencyRange) Contains(f Frequency) bool {
 	return f >= r.From && f <= r.To
+}
+
+// Shift the frequency by the given Δ.
+func (r *FrequencyRange) Shift(Δ Frequency) {
+	r.From += Δ
+	r.To += Δ
 }
 
 // Configuration parameters of the application.
@@ -41,3 +47,9 @@ type SamplesInput interface {
 	Samples() <-chan []byte
 	Close() error
 }
+
+// Px unit for pixels
+type Px float64
+
+// HzPerPx unit for resolution
+type HzPerPx float64
