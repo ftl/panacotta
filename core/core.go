@@ -51,5 +51,26 @@ type SamplesInput interface {
 // Px unit for pixels
 type Px float64
 
+// PxPoint unit for pixel coordinates
+type PxPoint struct {
+	X, Y Px
+}
+
+// FrequencyMark on the frequency scale
+type FrequencyMark struct {
+	Frequency Frequency
+	X         Px
+}
+
 // HzPerPx unit for resolution
 type HzPerPx float64
+
+// ToPx converts the given Frequency in Hz to Px
+func (r HzPerPx) ToPx(f Frequency) Px {
+	return Px(float64(f) / float64(r))
+}
+
+// ToHz converts the given Px to Hz
+func (r HzPerPx) ToHz(p Px) Frequency {
+	return Frequency(float64(p) * float64(r))
+}

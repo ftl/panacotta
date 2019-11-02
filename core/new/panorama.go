@@ -4,15 +4,38 @@ import (
 	"math"
 
 	"github.com/ftl/panacotta/core"
+	"github.com/ftl/panacotta/core/bandplan"
 )
 
 // Panorama controller
 type Panorama struct {
 	width          core.Px
 	frequencyRange core.FrequencyRange
-	vfo            core.Frequency
-	resolution     map[ViewMode]core.HzPerPx
-	viewMode       ViewMode
+	vfoFrequency   core.Frequency
+	vfoBand        bandplan.Band
+	vfoFilterWidth core.Frequency
+	vfoMode        string
+
+	resolution map[ViewMode]core.HzPerPx
+	viewMode   ViewMode
+
+	fftData  []float64
+	fftRange core.FrequencyRange
+}
+
+// PanoramaData contains everything to draw the panorama at a specific point in time.
+type PanoramaData struct {
+	FrequencyRange core.FrequencyRange
+	VFOFrequency   core.Frequency
+	VFOFilterWidth core.Frequency
+	VFOMode        string
+	VFOBand        bandplan.Band
+
+	VFOLine        core.Px
+	VFOFilterFrom  core.Px
+	VFOFilterTo    core.Px
+	FrequencyScale []core.FrequencyMark
+	Spectrum       []core.PxPoint
 }
 
 // ViewMode of the panorama.
@@ -30,11 +53,12 @@ const (
 )
 
 // NewPanorama returns a new instance of panorama.
-func NewPanorama(width core.Px, frequencyRange core.FrequencyRange, vfo core.Frequency) *Panorama {
+func NewPanorama(width core.Px, frequencyRange core.FrequencyRange, vfoFrequency core.Frequency) *Panorama {
 	result := Panorama{
 		width:          width,
 		frequencyRange: frequencyRange,
-		vfo:            vfo,
+		vfoFrequency:   vfoFrequency,
+		vfoBand:        bandplan.UnknownBand,
 		resolution: map[ViewMode]core.HzPerPx{
 			ViewFixed:    calcResolution(frequencyRange, width),
 			ViewCentered: defaultCenteredResolution,
@@ -50,8 +74,8 @@ func calcResolution(frequencyRange core.FrequencyRange, width core.Px) core.HzPe
 
 func (p *Panorama) updateFrequencyRange() {
 	var lowerRatio, upperRatio core.Frequency
-	if p.viewMode == ViewFixed && p.frequencyRange.Contains(p.vfo) {
-		lowerRatio = (p.vfo - p.frequencyRange.From) / p.frequencyRange.Width()
+	if p.viewMode == ViewFixed && p.frequencyRange.Contains(p.vfoFrequency) {
+		lowerRatio = (p.vfoFrequency - p.frequencyRange.From) / p.frequencyRange.Width()
 		lowerRatio = core.Frequency(math.Max(0.1, math.Min(float64(lowerRatio), 0.9)))
 		upperRatio = 1.0 - lowerRatio
 	} else {
@@ -60,8 +84,8 @@ func (p *Panorama) updateFrequencyRange() {
 	}
 
 	frequencyWidth := core.Frequency(float64(p.width) * float64(p.resolution[p.viewMode]))
-	p.frequencyRange.From = p.vfo - (lowerRatio * frequencyWidth)
-	p.frequencyRange.To = p.vfo + (upperRatio * frequencyWidth)
+	p.frequencyRange.From = p.vfoFrequency - (lowerRatio * frequencyWidth)
+	p.frequencyRange.To = p.vfoFrequency + (upperRatio * frequencyWidth)
 }
 
 // SetWidth in pixels
@@ -86,17 +110,32 @@ func (p Panorama) Bandwidth() core.Frequency {
 }
 
 // SetVFO in Hz
-func (p *Panorama) SetVFO(vfo core.Frequency) {
-	p.vfo = vfo
+func (p *Panorama) SetVFO(frequency core.Frequency, filterWidth core.Frequency, mode string) {
+	p.vfoFrequency = frequency
+	p.vfoFilterWidth = filterWidth
+	p.vfoMode = mode
 
-	if p.frequencyRange.Contains(vfo) {
+	if !p.vfoBand.Contains(frequency) {
+		band := bandplan.IARURegion1.ByFrequency(frequency)
+		if band.Width() > 0 {
+			p.vfoBand = band
+		}
+	}
+
+	if p.frequencyRange.Contains(frequency) {
 		p.updateFrequencyRange()
 	}
 }
 
 // VFO frequency in Hz
-func (p Panorama) VFO() core.Frequency {
-	return p.vfo
+func (p Panorama) VFO() (frequency core.Frequency, filterWidth core.Frequency, mode string, band bandplan.Band) {
+	return p.vfoFrequency, p.vfoFilterWidth, p.vfoMode, p.vfoBand
+}
+
+// SetFFT data
+func (p *Panorama) SetFFT(data []float64, frequencyRange core.FrequencyRange) {
+	p.fftData = data
+	p.fftRange = frequencyRange
 }
 
 // ToggleViewMode switches to the other view mode.
@@ -150,7 +189,71 @@ func (p Panorama) FrequencyAt(y core.Px) core.Frequency {
 	return p.frequencyRange.From + core.Frequency(float64(y)*float64(p.resolution[p.viewMode]))
 }
 
-// Spectrum as a block of magnitude values. blocksize >= width
-func (p Panorama) Spectrum() []float64 {
-	return []float64{}
+// Data to draw the current panorama.
+func (p Panorama) Data() *PanoramaData {
+	resolution := p.resolution[p.viewMode]
+	result := PanoramaData{
+		FrequencyRange: p.frequencyRange,
+		VFOFrequency:   p.vfoFrequency,
+		VFOFilterWidth: p.vfoFilterWidth,
+		VFOMode:        p.vfoMode,
+		VFOBand:        p.vfoBand,
+
+		VFOLine: resolution.ToPx(p.vfoFrequency - p.frequencyRange.From),
+
+		FrequencyScale: p.frequencyScale(),
+		Spectrum:       p.spectrum(),
+	}
+
+	result.VFOFilterFrom = result.VFOLine - resolution.ToPx(p.vfoFilterWidth/2)
+	result.VFOFilterTo = result.VFOLine + resolution.ToPx(p.vfoFilterWidth/2)
+
+	return &result
+}
+
+func (p Panorama) frequencyScale() []core.FrequencyMark {
+	resolution := p.resolution[p.viewMode]
+	fZeros := float64(int(math.Log10(float64(p.frequencyRange.Width()))) - 1)
+	fMagnitude := int(math.Pow(10, fZeros))
+	fFactor := fMagnitude
+	for resolution.ToPx(core.Frequency(fFactor)) < 200.0 {
+		if fFactor%10 == 0 {
+			fFactor *= 5
+		} else {
+			fFactor *= 10
+		}
+	}
+	for resolution.ToPx(core.Frequency(fFactor)) > 300.0 {
+		if fFactor%10 == 0 {
+			fFactor /= 5
+		} else {
+			fFactor /= 10
+		}
+	}
+
+	freqScale := make([]core.FrequencyMark, 0, int(p.frequencyRange.Width())/fFactor)
+	for f := core.Frequency((int(p.frequencyRange.From) / fFactor) * fFactor); f < p.frequencyRange.To; f += core.Frequency(fFactor) {
+		x := resolution.ToPx(f - p.frequencyRange.From)
+		mark := core.FrequencyMark{
+			X:         x,
+			Frequency: f,
+		}
+		freqScale = append(freqScale, mark)
+	}
+
+	return freqScale
+}
+
+func (p Panorama) spectrum() []core.PxPoint {
+	resolution := p.resolution[p.viewMode]
+	fftResolution := float64(p.fftRange.Width()) / float64(len(p.fftData))
+	result := make([]core.PxPoint, len(p.fftData))
+	for i, d := range p.fftData {
+		freq := p.fftRange.From * core.Frequency(float64(i)*fftResolution)
+		result[i] = core.PxPoint{
+			X: resolution.ToPx(freq - p.frequencyRange.From),
+			Y: core.Px(d),
+		}
+	}
+	return result
 }
