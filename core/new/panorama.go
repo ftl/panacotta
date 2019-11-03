@@ -171,7 +171,7 @@ func (p Panorama) FrequencyAt(y core.Px) core.Frequency {
 }
 
 // Data to draw the current panorama.
-func (p Panorama) Data() *core.Panorama {
+func (p Panorama) Data() core.Panorama {
 	resolution := p.resolution[p.viewMode]
 	result := core.Panorama{
 		FrequencyRange: p.frequencyRange,
@@ -187,7 +187,7 @@ func (p Panorama) Data() *core.Panorama {
 	result.VFOFilterFrom = result.VFOLine - resolution.ToPx(p.vfo.FilterWidth/2)
 	result.VFOFilterTo = result.VFOLine + resolution.ToPx(p.vfo.FilterWidth/2)
 
-	return &result
+	return result
 }
 
 func (p Panorama) frequencyScale() []core.FrequencyMark {

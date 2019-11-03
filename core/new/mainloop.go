@@ -10,6 +10,8 @@ func NewMainLoop(samplesInput core.SamplesInput, dsp *DSP, panorama *Panorama) *
 		samplesInput: samplesInput,
 		dsp:          dsp,
 		panorama:     panorama,
+
+		panoramaData: make(chan core.Panorama, 1),
 	}
 }
 
@@ -20,6 +22,8 @@ type MainLoop struct {
 	samplesInput core.SamplesInput
 	dsp          *DSP
 	panorama     *Panorama
+
+	panoramaData chan core.Panorama
 }
 
 func (m *MainLoop) Start() {
@@ -30,6 +34,7 @@ func (m *MainLoop) Start() {
 				m.dsp.ProcessSamples(samples, m.panorama.frequencyRange)
 			case fft := <-m.dsp.FFT:
 				m.panorama.SetFFT(fft)
+				m.panoramaData <- m.panorama.Data()
 			case <-m.cancel:
 				close(m.Done)
 				return
@@ -45,4 +50,8 @@ func (m *MainLoop) Stop() {
 	default:
 		close(m.cancel)
 	}
+}
+
+func (m *MainLoop) Panorama() <-chan core.Panorama {
+	return m.panoramaData
 }
