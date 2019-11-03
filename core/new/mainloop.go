@@ -1,27 +1,31 @@
 package new
 
-func NewMainLoop() *MainLoop {
+import "github.com/ftl/panacotta/core"
+
+func NewMainLoop(samplesInput core.SamplesInput) *MainLoop {
 	return &MainLoop{
 		cancel: make(chan struct{}),
-		done:   make(chan struct{}),
+		Done:   make(chan struct{}),
 
-		samples: make(chan []float64, 1),
+		samples: samplesInput,
 	}
 }
 
 type MainLoop struct {
 	cancel chan struct{}
-	done   chan struct{}
+	Done   chan struct{}
 
-	samples chan []float64
+	samples core.SamplesInput
 }
 
 func (m *MainLoop) Start() {
 	go func() {
 		for {
 			select {
+			case block := <-m.samples.Samples():
+				_ = block
 			case <-m.cancel:
-				close(m.done)
+				close(m.Done)
 				return
 			}
 		}
@@ -35,8 +39,4 @@ func (m *MainLoop) Stop() {
 	default:
 		close(m.cancel)
 	}
-}
-
-func (m MainLoop) Done() chan struct{} {
-	return m.done
 }

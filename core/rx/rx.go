@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/ftl/panacotta/core"
-	"github.com/ftl/panacotta/core/bandplan"
 )
 
 // New instance of the receiver.
@@ -19,7 +18,7 @@ func New(in core.SamplesInput, blockSize int, ifCenter, rxCenter, rxBandwidth co
 		fft:              newFFT(),
 		fftPerSecond:     fftPerSecond,
 
-		vfoBand: bandplan.UnknownBand,
+		vfoBand: core.UnknownBand,
 
 		ifCenter:    ifCenter,
 		rxCenter:    rxCenter,
@@ -41,7 +40,7 @@ type Receiver struct {
 	fftPerSecond     int
 
 	vfoFrequency core.Frequency      // updated from outside
-	vfoBand      bandplan.Band       // depends on the vfoFrequency
+	vfoBand      core.Band           // depends on the vfoFrequency
 	vfoROI       core.FrequencyRange // depends on vfoFrequency
 	vfoMode      string              // updated from outside
 	vfoBandwidth core.Frequency      // updated from outside
@@ -64,7 +63,7 @@ type Receiver struct {
 type FFTAvailable func([]float64)
 
 // VFOChanged is called when the VFO setup (frequency, band, ROI, mode, bandwidth), changes.
-type VFOChanged func(core.Frequency, bandplan.Band, core.FrequencyRange, string, core.Frequency)
+type VFOChanged func(core.Frequency, core.Band, core.FrequencyRange, string, core.Frequency)
 
 // ViewMode of the panorama.
 type ViewMode int
@@ -165,7 +164,7 @@ func (r *Receiver) SetVFOMode(mode string, bandwidth core.Frequency) {
 func (r *Receiver) updateROI() {
 	f := r.vfoFrequency
 	if !r.vfoBand.Contains(f) {
-		band := bandplan.IARURegion1.ByFrequency(f)
+		band := core.IARURegion1.ByFrequency(f)
 		if band.Width() > 0 {
 			r.vfoBand = band
 		}

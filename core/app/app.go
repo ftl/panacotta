@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/ftl/panacotta/core"
-	"github.com/ftl/panacotta/core/bandplan"
 	"github.com/ftl/panacotta/core/rtlsdr"
 	"github.com/ftl/panacotta/core/rx"
 	"github.com/ftl/panacotta/core/vfo"
@@ -23,7 +22,7 @@ func NewController(config core.Configuration) *Controller {
 // PanoramaView shows FFT data, the VFO ROI, the VFO frequency.
 type PanoramaView interface {
 	SetFFTData([]float64)
-	SetVFO(frequency core.Frequency, band bandplan.Band, roi core.FrequencyRange, mode string, bandwidth core.Frequency)
+	SetVFO(frequency core.Frequency, band core.Band, roi core.FrequencyRange, mode string, bandwidth core.Frequency)
 }
 
 // Controller for the application.

@@ -10,7 +10,6 @@ import (
 	"github.com/gotk3/gotk3/gtk"
 
 	"github.com/ftl/panacotta/core"
-	"github.com/ftl/panacotta/core/bandplan"
 	"github.com/ftl/panacotta/ui"
 )
 
@@ -59,7 +58,7 @@ type View struct {
 
 type vfo struct {
 	frequency core.Frequency
-	band      bandplan.Band
+	band      core.Band
 	roi       core.FrequencyRange
 	mode      string
 	bandwidth core.Frequency
@@ -75,7 +74,7 @@ func (v *View) SetFFTData(data []float64) {
 }
 
 // SetVFO sets the VFO configuration.
-func (v *View) SetVFO(frequency core.Frequency, band bandplan.Band, roi core.FrequencyRange, mode string, bandwidth core.Frequency) {
+func (v *View) SetVFO(frequency core.Frequency, band core.Band, roi core.FrequencyRange, mode string, bandwidth core.Frequency) {
 	v.dataLock.Lock()
 	defer v.dataLock.Unlock()
 	v.vfo.frequency = frequency
@@ -179,7 +178,7 @@ func drawDBMScale(cr *cairo.Context, ys []float64, width float64) {
 	cr.SetDash([]float64{}, 0)
 }
 
-func drawModeIndicator(cr *cairo.Context, matrix *cairo.Matrix, vfoBand bandplan.Band, vfoROI core.FrequencyRange, height float64) {
+func drawModeIndicator(cr *cairo.Context, matrix *cairo.Matrix, vfoBand core.Band, vfoROI core.FrequencyRange, height float64) {
 	cr.Save()
 	defer cr.Restore()
 
@@ -193,19 +192,19 @@ func drawModeIndicator(cr *cairo.Context, matrix *cairo.Matrix, vfoBand bandplan
 		var y float64
 		lineWidth := 10.0
 		switch p.Mode {
-		case bandplan.ModeCW:
+		case core.ModeCW:
 			cr.SetSourceRGB(0.4, 0, 0.4)
 			y = lineWidth * 0.5
-		case bandplan.ModePhone:
+		case core.ModePhone:
 			cr.SetSourceRGB(0.2, 0.4, 0)
 			y = lineWidth * 0.5
-		case bandplan.ModeDigital:
+		case core.ModeDigital:
 			cr.SetSourceRGB(0, 0, 0.6)
 			y = lineWidth * 0.5
-		case bandplan.ModeBeacon:
+		case core.ModeBeacon:
 			cr.SetSourceRGB(1, 0, 0)
 			y = lineWidth * 0.5
-		case bandplan.ModeContest:
+		case core.ModeContest:
 			cr.SetSourceRGB(0.6, 0.3, 0)
 			y = lineWidth * 1.5
 		}

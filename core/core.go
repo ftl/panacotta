@@ -1,6 +1,8 @@
 package core
 
-import "fmt"
+import (
+	"fmt"
+)
 
 // Frequency represents a frequency in Hz.
 type Frequency float64
@@ -73,4 +75,24 @@ func (r HzPerPx) ToPx(f Frequency) Px {
 // ToHz converts the given Px to Hz
 func (r HzPerPx) ToHz(p Px) Frequency {
 	return Frequency(float64(p) * float64(r))
+}
+
+// Panorama current state
+type Panorama struct {
+	FrequencyRange FrequencyRange
+	VFO            VFO
+	Band           Band
+
+	VFOLine        Px
+	VFOFilterFrom  Px
+	VFOFilterTo    Px
+	FrequencyScale []FrequencyMark
+	Spectrum       []PxPoint
+}
+
+// VFO current state
+type VFO struct {
+	Frequency   Frequency
+	FilterWidth Frequency
+	Mode        string
 }
