@@ -96,3 +96,9 @@ type VFO struct {
 	FilterWidth Frequency
 	Mode        string
 }
+
+// FFT data and the corresponding frequency range
+type FFT struct {
+	Data  []float64
+	Range FrequencyRange
+}

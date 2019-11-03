@@ -16,8 +16,7 @@ type Panorama struct {
 	resolution map[ViewMode]core.HzPerPx
 	viewMode   ViewMode
 
-	fftData  []float64
-	fftRange core.FrequencyRange
+	fft core.FFT
 }
 
 // ViewMode of the panorama.
@@ -116,9 +115,8 @@ func (p Panorama) VFO() (vfo core.VFO, band core.Band) {
 }
 
 // SetFFT data
-func (p *Panorama) SetFFT(data []float64, frequencyRange core.FrequencyRange) {
-	p.fftData = data
-	p.fftRange = frequencyRange
+func (p *Panorama) SetFFT(fft core.FFT) {
+	p.fft = fft
 }
 
 // ToggleViewMode switches to the other view mode.
@@ -227,10 +225,10 @@ func (p Panorama) frequencyScale() []core.FrequencyMark {
 
 func (p Panorama) spectrum() []core.PxPoint {
 	resolution := p.resolution[p.viewMode]
-	fftResolution := float64(p.fftRange.Width()) / float64(len(p.fftData))
-	result := make([]core.PxPoint, len(p.fftData))
-	for i, d := range p.fftData {
-		freq := p.fftRange.From * core.Frequency(float64(i)*fftResolution)
+	fftResolution := float64(p.fft.Range.Width()) / float64(len(p.fft.Data))
+	result := make([]core.PxPoint, len(p.fft.Data))
+	for i, d := range p.fft.Data {
+		freq := p.fft.Range.From * core.Frequency(float64(i)*fftResolution)
 		result[i] = core.PxPoint{
 			X: resolution.ToPx(freq - p.frequencyRange.From),
 			Y: core.Px(d),

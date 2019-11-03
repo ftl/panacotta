@@ -5,12 +5,10 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
-
-	"github.com/ftl/panacotta/core/rx"
 )
 
 func TestStopAndDone(t *testing.T) {
-	m := NewMainLoop(rx.NewRandomInput(1)) // TODO use a mock input
+	m := NewMainLoop(&mockInput{}, &DSP{}, &Panorama{})
 
 	m.Start()
 	start := time.Now()
@@ -22,4 +20,14 @@ func TestStopAndDone(t *testing.T) {
 	duration := time.Since(start)
 
 	assert.True(t, duration > 100*time.Millisecond)
+}
+
+type mockInput struct{}
+
+func (m *mockInput) Samples() <-chan []byte {
+	return make(chan []byte)
+}
+
+func (m *mockInput) Close() error {
+	return nil
 }
