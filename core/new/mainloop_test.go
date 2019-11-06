@@ -8,7 +8,7 @@ import (
 )
 
 func TestStopAndDone(t *testing.T) {
-	m := NewMainLoop(&mockInput{}, &DSP{}, &Panorama{})
+	m := NewMainLoop(&mockInput{}, &DSP{}, nil, &Panorama{})
 
 	m.Start()
 	start := time.Now()

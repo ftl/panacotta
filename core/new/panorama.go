@@ -92,19 +92,17 @@ func (p Panorama) Bandwidth() core.Frequency {
 }
 
 // SetVFO in Hz
-func (p *Panorama) SetVFO(frequency core.Frequency, filterWidth core.Frequency, mode string) {
-	p.vfo.Frequency = frequency
-	p.vfo.FilterWidth = filterWidth
-	p.vfo.Mode = mode
+func (p *Panorama) SetVFO(vfo core.VFO) {
+	p.vfo = vfo
 
-	if !p.band.Contains(frequency) {
-		band := core.IARURegion1.ByFrequency(frequency)
+	if !p.band.Contains(vfo.Frequency) {
+		band := core.IARURegion1.ByFrequency(vfo.Frequency)
 		if band.Width() > 0 {
 			p.band = band
 		}
 	}
 
-	if p.frequencyRange.Contains(frequency) {
+	if p.frequencyRange.Contains(vfo.Frequency) {
 		p.updateFrequencyRange()
 	}
 }

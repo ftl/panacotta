@@ -23,7 +23,7 @@ func TestWidth(t *testing.T) {
 	assert.Equal(t, core.Frequency(1050.0), p.From())
 	assert.Equal(t, core.Frequency(1150.0), p.To())
 
-	p.SetVFO(1130.0, 10.0, "")
+	p.SetVFO(core.VFO{1130.0, 10.0, ""})
 	p.SetWidth(100)
 
 	assert.Equal(t, core.Px(100), p.width)
@@ -35,7 +35,7 @@ func TestToggleViewMode(t *testing.T) {
 	p := NewPanorama(100, core.FrequencyRange{1000.0, 1200.0}, 1100.0)
 	p.resolution[ViewCentered] = 1
 
-	p.SetVFO(1150.0, 10.0, "")
+	p.SetVFO(core.VFO{1150.0, 10.0, ""})
 
 	assert.Equal(t, core.Frequency(1000.0), p.From())
 	assert.Equal(t, core.Frequency(1200.0), p.To())
@@ -56,7 +56,7 @@ func TestCenteredVFO(t *testing.T) {
 	p.resolution[ViewCentered] = 1
 	p.viewMode = ViewCentered
 
-	p.SetVFO(1150.0, 10.0, "")
+	p.SetVFO(core.VFO{1150.0, 10.0, ""})
 
 	assert.Equal(t, core.Frequency(1100.0), p.From())
 	assert.Equal(t, core.Frequency(1200.0), p.To())
@@ -66,17 +66,17 @@ func TestFixedVFO(t *testing.T) {
 	p := NewPanorama(100, core.FrequencyRange{1000.0, 1200.0}, 1100.0)
 	p.viewMode = ViewFixed
 
-	p.SetVFO(1150.0, 10.0, "")
+	p.SetVFO(core.VFO{1150.0, 10.0, ""})
 
 	assert.Equal(t, core.Frequency(1000.0), p.From())
 	assert.Equal(t, core.Frequency(1200.0), p.To())
 
-	p.SetVFO(1190.0, 10.0, "")
+	p.SetVFO(core.VFO{1190.0, 10.0, ""})
 
 	assert.Equal(t, core.Frequency(1010.0), p.From())
 	assert.Equal(t, core.Frequency(1210.0), p.To())
 
-	p.SetVFO(2000.0, 10.0, "")
+	p.SetVFO(core.VFO{2000.0, 10.0, ""})
 
 	assert.Equal(t, core.Frequency(1010.0), p.From())
 	assert.Equal(t, core.Frequency(1210.0), p.To())
