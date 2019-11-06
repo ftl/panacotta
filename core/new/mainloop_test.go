@@ -4,11 +4,12 @@ import (
 	"testing"
 	"time"
 
+	"github.com/ftl/panacotta/core"
 	"github.com/stretchr/testify/assert"
 )
 
 func TestStopAndDone(t *testing.T) {
-	m := NewMainLoop(&mockInput{}, &DSP{}, nil, &Panorama{})
+	m := NewMainLoop(&mockInput{}, &DSP{}, &mockVFO{}, &Panorama{})
 
 	m.Start()
 	start := time.Now()
@@ -31,3 +32,13 @@ func (m *mockInput) Samples() <-chan []byte {
 func (m *mockInput) Close() error {
 	return nil
 }
+
+type mockVFO struct{}
+
+func (m *mockVFO) Data() <-chan core.VFO {
+	return make(chan core.VFO)
+}
+
+func (m *mockVFO) TuneBy(Δf core.Frequency) {}
+
+func (m *mockVFO) TuneTo(f core.Frequency) {}

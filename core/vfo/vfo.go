@@ -25,8 +25,9 @@ func Open(address string) (*VFO, error) {
 		address:         address,
 		trxTimeout:      100 * time.Millisecond,
 		pollingInterval: 500 * time.Millisecond,
-		setFrequency:    make(chan core.Frequency, 10),
+		setFrequency:    make(chan core.Frequency, 1),
 		stateLock:       new(sync.RWMutex),
+		data:            make(chan core.VFO, 1),
 	}
 
 	err := result.reconnect()
@@ -50,6 +51,8 @@ type VFO struct {
 	stateLock                 *sync.RWMutex
 	frequencyChangedCallbacks []FrequencyChanged
 	modeChangedCallbacks      []ModeChanged
+
+	data chan core.VFO
 }
 
 // FrequencyChanged is called on frequency changes.
@@ -131,6 +134,8 @@ func (v *VFO) pollFrequency() error {
 	}
 
 	if v.updateCurrentFrequency(f) {
+		v.data <- core.VFO{Frequency: f, Mode: v.currentMode, FilterWidth: v.currentBandwidth}
+
 		for _, frequencyChanged := range v.frequencyChangedCallbacks {
 			frequencyChanged(f)
 		}
@@ -172,6 +177,8 @@ func (v *VFO) pollMode() error {
 	}
 
 	if v.updateCurrentMode(mode, bandwidth) {
+		v.data <- core.VFO{Frequency: v.currentFrequency, Mode: mode, FilterWidth: bandwidth}
+
 		for _, modeChanged := range v.modeChangedCallbacks {
 			modeChanged(mode, bandwidth)
 		}
@@ -208,14 +215,29 @@ func (v *VFO) sendFrequency(f core.Frequency) error {
 	return nil
 }
 
-// SetFrequency sets the given frequency on the VFO.
-func (v *VFO) SetFrequency(f core.Frequency) {
+// Data of this VFO.
+func (v *VFO) Data() <-chan core.VFO {
+	return v.data
+}
+
+// TuneBy the given frequency delta.
+func (v *VFO) TuneBy(Δf core.Frequency) {
+	v.setFrequency <- v.CurrentFrequency() + Δf
+}
+
+// TuneTo the given frequency.
+func (v *VFO) TuneTo(f core.Frequency) {
 	v.setFrequency <- f
 }
 
+// SetFrequency sets the given frequency on the VFO.
+func (v *VFO) SetFrequency(f core.Frequency) {
+	v.TuneTo(f)
+}
+
 // MoveFrequency moves the VFO frequncy by the given delta.
-func (v *VFO) MoveFrequency(delta core.Frequency) {
-	v.setFrequency <- v.CurrentFrequency() + delta
+func (v *VFO) MoveFrequency(Δf core.Frequency) {
+	v.TuneBy(Δf)
 }
 
 // CurrentFrequency returns the current frequency of the VFO.
