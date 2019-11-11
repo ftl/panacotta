@@ -1,13 +1,12 @@
-package new
+package dsp
 
 import "github.com/ftl/panacotta/core"
 
-func NewDSP(sampleRate int, ifFrequency, rxOffset core.Frequency) *DSP {
+func New(sampleRate int, ifFrequency, rxOffset core.Frequency) *DSP {
 	result := DSP{
 		cancel:    make(chan struct{}),
 		workInput: make(chan work, 1),
-		vfoInput:  make(chan core.VFO, 1),
-		FFT:       make(chan core.FFT, 1),
+		fft:       make(chan core.FFT, 1),
 
 		sampleRate: sampleRate,
 		ifCenter:   ifFrequency,
@@ -22,8 +21,7 @@ func NewDSP(sampleRate int, ifFrequency, rxOffset core.Frequency) *DSP {
 type DSP struct {
 	cancel    chan struct{}
 	workInput chan work
-	vfoInput  chan core.VFO
-	FFT       chan core.FFT
+	fft       chan core.FFT
 
 	sampleRate int
 	ifCenter   core.Frequency
@@ -36,19 +34,19 @@ type DSP struct {
 type work struct {
 	samples  []byte
 	fftRange core.FrequencyRange
+	vfo      core.VFO
 }
 
 func (d *DSP) run() {
 	for {
 		select {
-		case vfo := <-d.vfoInput:
-			d.vfo = vfo
 		case work := <-d.workInput:
 			// TODO calc blocksize and effective range
 			d.fftRange = work.fftRange
+			d.vfo = work.vfo
 
 			// TODO produce FFT
-			d.FFT <- core.FFT{}
+			d.fft <- core.FFT{}
 		case <-d.cancel:
 			return
 		}
@@ -64,10 +62,10 @@ func (d *DSP) Stop() {
 	}
 }
 
-func (d *DSP) SetVFO(vfo core.VFO) {
-	d.vfoInput <- vfo
+func (d *DSP) ProcessSamples(samples []byte, fftRange core.FrequencyRange, vfo core.VFO) {
+	d.workInput <- work{samples, fftRange, vfo}
 }
 
-func (d *DSP) ProcessSamples(samples []byte, fftRange core.FrequencyRange) {
-	d.workInput <- work{samples, fftRange}
+func (d *DSP) FFT() chan core.FFT {
+	return d.fft
 }

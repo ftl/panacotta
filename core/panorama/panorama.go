@@ -1,4 +1,4 @@
-package new
+package panorama
 
 import (
 	"math"
@@ -33,8 +33,8 @@ const (
 	defaultCenteredResolution = core.HzPerPx(10)
 )
 
-// NewPanorama returns a new instance of panorama.
-func NewPanorama(width core.Px, frequencyRange core.FrequencyRange, vfoFrequency core.Frequency) *Panorama {
+// New returns a new instance of panorama.
+func New(width core.Px, frequencyRange core.FrequencyRange, vfoFrequency core.Frequency) *Panorama {
 	result := Panorama{
 		width:          width,
 		frequencyRange: frequencyRange,
@@ -74,6 +74,11 @@ func (p *Panorama) updateFrequencyRange() {
 func (p *Panorama) SetWidth(width core.Px) {
 	p.width = width
 	p.updateFrequencyRange()
+}
+
+// FrequencyRange of the panorama
+func (p Panorama) FrequencyRange() core.FrequencyRange {
+	return p.frequencyRange
 }
 
 // From in Hz

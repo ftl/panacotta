@@ -1,4 +1,4 @@
-package new
+package panorama
 
 import (
 	"testing"
@@ -9,7 +9,7 @@ import (
 )
 
 func TestWidth(t *testing.T) {
-	p := NewPanorama(100, core.FrequencyRange{1000.0, 1200.0}, 1100.0)
+	p := New(100, core.FrequencyRange{1000.0, 1200.0}, 1100.0)
 
 	p.SetWidth(200)
 
@@ -32,7 +32,7 @@ func TestWidth(t *testing.T) {
 }
 
 func TestToggleViewMode(t *testing.T) {
-	p := NewPanorama(100, core.FrequencyRange{1000.0, 1200.0}, 1100.0)
+	p := New(100, core.FrequencyRange{1000.0, 1200.0}, 1100.0)
 	p.resolution[ViewCentered] = 1
 
 	p.SetVFO(core.VFO{1150.0, 10.0, ""})
@@ -52,7 +52,7 @@ func TestToggleViewMode(t *testing.T) {
 }
 
 func TestCenteredVFO(t *testing.T) {
-	p := NewPanorama(100, core.FrequencyRange{1000.0, 1200.0}, 1100.0)
+	p := New(100, core.FrequencyRange{1000.0, 1200.0}, 1100.0)
 	p.resolution[ViewCentered] = 1
 	p.viewMode = ViewCentered
 
@@ -63,7 +63,7 @@ func TestCenteredVFO(t *testing.T) {
 }
 
 func TestFixedVFO(t *testing.T) {
-	p := NewPanorama(100, core.FrequencyRange{1000.0, 1200.0}, 1100.0)
+	p := New(100, core.FrequencyRange{1000.0, 1200.0}, 1100.0)
 	p.viewMode = ViewFixed
 
 	p.SetVFO(core.VFO{1150.0, 10.0, ""})
@@ -83,7 +83,7 @@ func TestFixedVFO(t *testing.T) {
 }
 
 func TestZoom(t *testing.T) {
-	p := NewPanorama(1000, core.FrequencyRange{100000.0, 120000.0}, 110000.0)
+	p := New(1000, core.FrequencyRange{100000.0, 120000.0}, 110000.0)
 
 	p.ZoomIn()
 
@@ -110,7 +110,7 @@ func TestZoom(t *testing.T) {
 }
 
 func TestDrag(t *testing.T) {
-	p := NewPanorama(1000, core.FrequencyRange{100000.0, 120000.0}, 110000.0)
+	p := New(1000, core.FrequencyRange{100000.0, 120000.0}, 110000.0)
 
 	p.Drag(-500)
 
@@ -124,7 +124,7 @@ func TestDrag(t *testing.T) {
 }
 
 func TestFrequencyAt(t *testing.T) {
-	p := NewPanorama(1000, core.FrequencyRange{100000.0, 120000.0}, 110000.0)
+	p := New(1000, core.FrequencyRange{100000.0, 120000.0}, 110000.0)
 
 	assert.Equal(t, core.Frequency(105000.0), p.FrequencyAt(250))
 	assert.Equal(t, core.Frequency(110000.0), p.FrequencyAt(500))
@@ -132,7 +132,7 @@ func TestFrequencyAt(t *testing.T) {
 }
 
 func TestFrequencyScale(t *testing.T) {
-	p := NewPanorama(1000, core.FrequencyRange{100300.0, 120700.0}, 110000.0)
+	p := New(1000, core.FrequencyRange{100300.0, 120700.0}, 110000.0)
 
 	scale1 := p.frequencyScale()
 	offset1 := int(scale1[1].X - scale1[0].X)
