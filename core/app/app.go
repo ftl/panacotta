@@ -2,80 +2,60 @@ package app
 
 import (
 	"log"
-	"math"
-	"sync"
-	"time"
 
 	"github.com/ftl/panacotta/core"
+	"github.com/ftl/panacotta/core/dsp"
+	"github.com/ftl/panacotta/core/panorama"
 	"github.com/ftl/panacotta/core/rtlsdr"
 	"github.com/ftl/panacotta/core/rx"
 	"github.com/ftl/panacotta/core/vfo"
 )
 
-// NewController returns a new instance of the AppController interface.
-func NewController(config core.Configuration) *Controller {
+// New returns a new app Controller.
+func New(config core.Configuration) *Controller {
 	return &Controller{
 		config: config,
+		stop:   make(chan struct{}),
 	}
-}
-
-// PanoramaView shows FFT data, the VFO ROI, the VFO frequency.
-type PanoramaView interface {
-	SetFFTData([]float64)
-	SetVFO(frequency core.Frequency, band core.Band, roi core.FrequencyRange, mode string, bandwidth core.Frequency)
 }
 
 // Controller for the application.
 type Controller struct {
-	done         chan struct{}
-	subProcesses *sync.WaitGroup
+	*mainLoop
+	stop chan struct{}
 
-	config       core.Configuration
-	rx           *rx.Receiver
-	vfo          *vfo.VFO
-	lastDialTune time.Time
-
-	panorama PanoramaView
+	config core.Configuration
 }
 
 // Startup the application.
 func (c *Controller) Startup() {
-	c.done = make(chan struct{})
-	c.subProcesses = new(sync.WaitGroup)
-
 	// configuration
-	ifCenter := 67899000   // this is fix for the FT-450D and specific to our method
-	rxBandwidth := 1800000 // this is the sample rate and specific to our method
-	blockSize := 32768     // 131072    // this is the number of *complex* samples in one block
+	ifCenter := 67899000  // this is fix for the FT-450D and specific to our method
+	sampleRate := 1800000 // this is specific to our method
+	blockSize := 32768    // 131072    // this is the number of *complex* samples in one block
 
-	rxCenter := ifCenter - (rxBandwidth / 4)
+	rxCenter := ifCenter - (sampleRate / 4)
 	log.Printf("RX @ %v %d ppm", rxCenter, c.config.FrequencyCorrection)
 	log.Printf("FFT per second: %d", c.config.FFTPerSecond)
 
-	samplesInput, err := c.openSamplesInput(rxCenter, rxBandwidth, blockSize, c.config.FrequencyCorrection, c.config.Testmode)
+	samplesInput, err := c.openSamplesInput(rxCenter, sampleRate, blockSize, c.config.FrequencyCorrection, c.config.Testmode)
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	c.rx = rx.New(samplesInput, blockSize, core.Frequency(ifCenter), core.Frequency(rxCenter), core.Frequency(rxBandwidth), c.config.FFTPerSecond)
-	c.rx.OnFFTAvailable(c.panorama.SetFFTData)
-	c.rx.OnVFOChange(c.panorama.SetVFO)
-
-	c.vfo, err = vfo.Open(c.config.VFOHost)
+	vfo, err := vfo.Open(c.config.VFOHost)
 	if err != nil {
 		log.Fatal(err)
 	}
-	c.vfo.OnFrequencyChange(func(f core.Frequency) {
-		log.Print("Current frequency: ", f)
-	})
-	c.vfo.OnFrequencyChange(c.rx.SetVFOFrequency)
-	c.vfo.OnModeChange(func(mode string, bandwidth core.Frequency) {
-		log.Printf("Current mode: %s bandwidth: %v", mode, bandwidth)
-	})
-	c.vfo.OnModeChange(c.rx.SetVFOMode)
+	go vfo.Run(c.stop)
 
-	c.rx.Run(c.done, c.subProcesses)
-	c.vfo.Run(c.done, c.subProcesses)
+	dsp := dsp.New(sampleRate, core.Frequency(ifCenter), core.Frequency(-sampleRate/4))
+	go dsp.Run(c.stop)
+
+	panorama := panorama.New(0, core.FrequencyRange{}, 0)
+
+	c.mainLoop = newMainLoop(samplesInput, dsp, vfo, panorama)
+	go c.mainLoop.Run(c.stop)
 }
 
 func (c *Controller) openSamplesInput(centerFrequency int, sampleRate int, blockSize int, frequencyCorrection int, testmode bool) (core.SamplesInput, error) {
@@ -88,67 +68,5 @@ func (c *Controller) openSamplesInput(centerFrequency int, sampleRate int, block
 
 // Shutdown the application.
 func (c *Controller) Shutdown() {
-	close(c.done)
-	c.subProcesses.Wait()
-}
-
-// SetPanoramaView sets the panorama view.
-func (c *Controller) SetPanoramaView(view PanoramaView) {
-	c.panorama = view
-}
-
-// Tune the VFO to the given frequency.
-func (c *Controller) Tune(f core.Frequency) {
-	c.vfo.SetFrequency(core.Frequency(int(f/10) * 10))
-}
-
-// TuneUp moves the VFO frequency 10Hz upwards.
-func (c *Controller) TuneUp() {
-	log.Print("tune up")
-	delta := c.tuneDial()
-	c.vfo.MoveFrequency(delta)
-}
-
-// TuneDown moves the VFO frequency 10Hz downwards.
-func (c *Controller) TuneDown() {
-	log.Print("tune down")
-	delta := c.tuneDial()
-	c.vfo.MoveFrequency(-delta)
-}
-
-func (c *Controller) tuneDial() core.Frequency {
-	now := time.Now()
-	defer func() {
-		c.lastDialTune = now
-	}()
-	rate := int(time.Second / now.Sub(c.lastDialTune))
-	a := 0.3
-	max := 500.0
-	delta := (int(math.Min(math.Pow(a*float64(rate), 2), max))/10 + 1) * 10
-	return core.Frequency(delta)
-}
-
-// ToggleViewMode of the panorama view.
-func (c *Controller) ToggleViewMode() {
-	switch c.rx.ViewMode() {
-	case rx.ViewFixed:
-		c.rx.SetViewMode(rx.ViewCentered)
-	case rx.ViewCentered:
-		c.rx.SetViewMode(rx.ViewFixed)
-	}
-}
-
-// ZoomIn to the frequency range.
-func (c *Controller) ZoomIn() {
-	log.Print("zoom in")
-}
-
-// ZoomOut of the frequency range.
-func (c *Controller) ZoomOut() {
-	log.Print("zoom out")
-}
-
-// ResetZoom according to the view mode.
-func (c *Controller) ResetZoom() {
-	log.Print("reset zoom")
+	close(c.stop)
 }

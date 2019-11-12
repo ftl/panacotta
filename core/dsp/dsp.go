@@ -4,7 +4,6 @@ import "github.com/ftl/panacotta/core"
 
 func New(sampleRate int, ifFrequency, rxOffset core.Frequency) *DSP {
 	result := DSP{
-		cancel:    make(chan struct{}),
 		workInput: make(chan work, 1),
 		fft:       make(chan core.FFT, 1),
 
@@ -13,13 +12,10 @@ func New(sampleRate int, ifFrequency, rxOffset core.Frequency) *DSP {
 		rxCenter:   ifFrequency + rxOffset,
 	}
 
-	go result.run()
-
 	return &result
 }
 
 type DSP struct {
-	cancel    chan struct{}
 	workInput chan work
 	fft       chan core.FFT
 
@@ -37,7 +33,7 @@ type work struct {
 	vfo      core.VFO
 }
 
-func (d *DSP) run() {
+func (d *DSP) Run(stop chan struct{}) {
 	for {
 		select {
 		case work := <-d.workInput:
@@ -47,18 +43,10 @@ func (d *DSP) run() {
 
 			// TODO produce FFT
 			d.fft <- core.FFT{}
-		case <-d.cancel:
+		case <-stop:
+			close(d.fft)
 			return
 		}
-	}
-}
-
-func (d *DSP) Stop() {
-	select {
-	case <-d.cancel:
-		return
-	default:
-		close(d.cancel)
 	}
 }
 

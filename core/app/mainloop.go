@@ -7,11 +7,8 @@ import (
 	"github.com/ftl/panacotta/core"
 )
 
-func newMainLoop(samplesInput core.SamplesInput, dsp dsp, vfo vfoType, panorama panorama) *mainLoop {
-	return &mainLoop{
-		cancel: make(chan struct{}),
-		Done:   make(chan struct{}),
-
+func newMainLoop(samplesInput core.SamplesInput, dsp dspType, vfo vfoType, panorama panoramaType) *mainLoop {
+	result := &mainLoop{
 		samplesInput: samplesInput,
 		dsp:          dsp,
 		vfo:          vfo,
@@ -26,18 +23,17 @@ func newMainLoop(samplesInput core.SamplesInput, dsp dsp, vfo vfoType, panorama 
 		zoomOut:        make(chan struct{}, 1),
 		resetZoom:      make(chan struct{}, 1),
 	}
+
+	return result
 }
 
 // MainLoop coordinates the work of all the components.
 type mainLoop struct {
-	cancel chan struct{}
-	Done   chan struct{}
-
 	samplesInput core.SamplesInput
-	dsp          dsp
+	dsp          dspType
 	vfo          vfoType
 	tuner        tuner
-	panorama     panorama
+	panorama     panoramaType
 
 	panoramaData   chan core.Panorama
 	panoramaWidth  chan core.Px
@@ -50,7 +46,7 @@ type mainLoop struct {
 }
 
 // DSP from the main loop's perspective.
-type dsp interface {
+type dspType interface {
 	ProcessSamples(samples []byte, fftRange core.FrequencyRange, vfo core.VFO)
 	FFT() chan core.FFT
 }
@@ -63,22 +59,20 @@ type vfoType interface {
 }
 
 // Panorama from the main loop's perspective.
-type panorama interface {
+type panoramaType interface {
 	VFO() (core.VFO, core.Band)
 	FrequencyRange() core.FrequencyRange
 	SetWidth(core.Px)
 	SetFFT(core.FFT)
 	SetVFO(core.VFO)
 	Data() core.Panorama
-	TuneTo(core.Frequency)
-	TuneBy(core.Frequency)
 	ToggleViewMode()
 	ZoomIn()
 	ZoomOut()
 	ResetZoom()
 }
 
-func (m *mainLoop) run() {
+func (m *mainLoop) Run(stop chan struct{}) {
 	for {
 		select {
 		case samples := <-m.samplesInput.Samples():
@@ -104,25 +98,9 @@ func (m *mainLoop) run() {
 			m.panorama.ZoomOut()
 		case <-m.resetZoom:
 			m.panorama.ResetZoom()
-		case <-m.cancel:
-			close(m.Done)
+		case <-stop:
 			return
 		}
-	}
-}
-
-// Start the main loop
-func (m *mainLoop) Start() {
-	go m.run()
-}
-
-// Stop the main loop
-func (m *mainLoop) Stop() {
-	select {
-	case <-m.cancel:
-		return
-	default:
-		close(m.cancel)
 	}
 }
 
@@ -139,6 +117,11 @@ func (m *mainLoop) SetPanoramaWidth(width core.Px) {
 // TuneTo the given frequency.
 func (m *mainLoop) TuneTo(f core.Frequency) {
 	m.tuneTo <- f
+}
+
+// TuneBy the given frequency.
+func (m *mainLoop) TuneBy(Δf core.Frequency) {
+	m.tuneBy <- Δf
 }
 
 // TuneUp the VFO.

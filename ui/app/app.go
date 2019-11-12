@@ -6,20 +6,21 @@ import (
 	"github.com/gotk3/gotk3/glib"
 	"github.com/gotk3/gotk3/gtk"
 
-	"github.com/ftl/panacotta/core/cfg"
-	coreapp "github.com/ftl/panacotta/core/app"
 	"github.com/ftl/panacotta/ui/panorama"
 )
 
 // Run the application
-func Run(args []string) {
+func Run(controller Controller, args []string) {
 	var err error
-	a := &application{id: "ft.panacotta"}
+	a := &application{
+		id:         "ft.panacotta",
+		controller: controller,
+	}
+
 	a.app, err = gtk.ApplicationNew(a.id, glib.APPLICATION_FLAGS_NONE)
 	if err != nil {
 		log.Fatal("Cannot create application: ", err)
 	}
-
 	a.app.Connect("startup", a.startup)
 	a.app.Connect("activate", a.activate)
 	a.app.Connect("shutdown", a.shutdown)
@@ -27,20 +28,20 @@ func Run(args []string) {
 	a.app.Run(args)
 }
 
-type controller interface {
+// Controller of the application
+type Controller interface {
 	panorama.Controller
 
 	Startup()
 	Shutdown()
-	SetPanoramaView(coreapp.PanoramaView)
 }
 
 type application struct {
 	id         string
+	controller Controller
 	app        *gtk.Application
 	builder    *gtk.Builder
 	mainWindow *mainWindow
-	controller controller
 	done       chan struct{}
 }
 
@@ -50,18 +51,10 @@ func (a *application) startup() {
 
 func (a *application) activate() {
 	a.builder = setupBuilder()
-
-	configuration, err := cfg.Load()
-	if err != nil {
-		log.Println(err)
-		configuration = cfg.Static()
-	}
-
-	a.controller = coreapp.NewController(configuration)
 	a.mainWindow = newMainWindow(a.builder, a.app)
-	a.controller.SetPanoramaView(panorama.New(a.builder, a.controller))
 
 	a.controller.Startup()
+	panorama.New(a.builder, a.controller)
 
 	a.mainWindow.Show()
 }

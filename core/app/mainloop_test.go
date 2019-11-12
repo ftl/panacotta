@@ -12,13 +12,13 @@ import (
 func TestStopAndDone(t *testing.T) {
 	m := newMainLoop(&mockInput{}, &mockDSP{}, &mockVFO{}, &mockPanorama{})
 
-	m.Start()
+	stop := make(chan struct{})
 	start := time.Now()
 	go func() {
 		time.Sleep(100 * time.Millisecond)
-		m.Stop()
+		close(stop)
 	}()
-	<-m.Done
+	m.Run(stop)
 	duration := time.Since(start)
 
 	assert.True(t, duration > 100*time.Millisecond)

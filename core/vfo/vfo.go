@@ -62,10 +62,8 @@ type FrequencyChanged func(f core.Frequency)
 type ModeChanged func(mode string, bandwidth core.Frequency)
 
 // Run the VFO.
-func (v *VFO) Run(stop chan struct{}, wait *sync.WaitGroup) {
-	wait.Add(1)
+func (v *VFO) Run(stop chan struct{}) {
 	go func() {
-		defer wait.Done()
 		defer v.shutdown()
 
 		for {

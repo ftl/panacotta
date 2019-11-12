@@ -31,7 +31,8 @@ func New(builder *gtk.Builder, controller Controller) *View {
 
 // Controller for the panorama view.
 type Controller interface {
-	Tune(core.Frequency)
+	TuneTo(core.Frequency)
+	TuneBy(core.Frequency)
 	TuneUp()
 	TuneDown()
 	ToggleViewMode()

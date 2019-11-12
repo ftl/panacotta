@@ -66,7 +66,7 @@ func (v *View) onButtonRelease(da *gtk.DrawingArea, e *gdk.Event) {
 func (v *View) onClick(button uint) {
 	switch button {
 	case 1:
-		v.controller.Tune(v.deviceToFrequency(v.mouse.startX))
+		v.controller.TuneTo(v.deviceToFrequency(v.mouse.startX))
 	case 2:
 		v.controller.ToggleViewMode()
 	default:
