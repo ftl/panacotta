@@ -31,7 +31,7 @@ type Controller struct {
 func (c *Controller) Startup() {
 	// configuration
 	ifCenter := 67899000  // this is fix for the FT-450D and specific to our method
-	sampleRate := 1800000 // this is specific to our method
+	sampleRate := 1800000 // 2097152 // 1800000 // this is specific to our method
 	blockSize := 32768    // 131072    // this is the number of *complex* samples in one block
 
 	rxCenter := ifCenter - (sampleRate / 4)
@@ -61,7 +61,10 @@ func (c *Controller) Startup() {
 func (c *Controller) openSamplesInput(centerFrequency int, sampleRate int, blockSize int, frequencyCorrection int, testmode bool) (core.SamplesInput, error) {
 	if testmode {
 		log.Printf("Testmode, using random samples input")
-		return rx.NewRandomInput(blockSize), nil
+		return rx.NewRandomInput(blockSize, sampleRate), nil
+		// return rx.NewToneInput(blockSize, sampleRate, 460000.0), nil
+		// return rx.NewSweepInput(blockSize, sampleRate, -float64(sampleRate/2), float64(sampleRate/2), float64(sampleRate)*0.001), nil
+		// return rx.NewSweepInput(blockSize, sampleRate, 0, float64(sampleRate), float64(sampleRate)*0.001), nil
 	}
 	return rtlsdr.Open(centerFrequency, sampleRate, blockSize, frequencyCorrection)
 }
@@ -69,4 +72,9 @@ func (c *Controller) openSamplesInput(centerFrequency int, sampleRate int, block
 // Shutdown the application.
 func (c *Controller) Shutdown() {
 	close(c.stop)
+}
+
+// Done indicate done.
+func (c *Controller) Done() chan struct{} {
+	return c.stop
 }

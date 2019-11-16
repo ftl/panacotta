@@ -133,7 +133,6 @@ func (v *VFO) pollFrequency() error {
 
 	if v.updateCurrentFrequency(f) {
 		v.data <- core.VFO{Frequency: f, Mode: v.currentMode, FilterWidth: v.currentBandwidth}
-
 		for _, frequencyChanged := range v.frequencyChangedCallbacks {
 			frequencyChanged(f)
 		}
@@ -206,6 +205,7 @@ func (v *VFO) sendFrequency(f core.Frequency) error {
 	}
 
 	if v.updateCurrentFrequency(f) {
+		v.data <- core.VFO{Frequency: f, Mode: v.currentMode, FilterWidth: v.currentBandwidth}
 		for _, frequencyChanged := range v.frequencyChangedCallbacks {
 			frequencyChanged(f)
 		}
@@ -220,12 +220,20 @@ func (v *VFO) Data() <-chan core.VFO {
 
 // TuneBy the given frequency delta.
 func (v *VFO) TuneBy(Δf core.Frequency) {
-	v.setFrequency <- v.CurrentFrequency() + Δf
+	select {
+	case v.setFrequency <- v.CurrentFrequency() + Δf:
+	default:
+		log.Print("VFO.TuneBy hangs")
+	}
 }
 
 // TuneTo the given frequency.
 func (v *VFO) TuneTo(f core.Frequency) {
-	v.setFrequency <- f
+	select {
+	case v.setFrequency <- f:
+	default:
+		log.Print("VFO.TuneTo hangs")
+	}
 }
 
 // SetFrequency sets the given frequency on the VFO.

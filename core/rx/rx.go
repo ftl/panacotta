@@ -104,7 +104,8 @@ func (r *Receiver) Run(stop chan struct{}, wait *sync.WaitGroup) {
 
 		for {
 			select {
-			case rawBlock := <-r.in.Samples():
+			case <-r.in.Samples():
+				rawBlock := []byte{}
 				blockTime := time.Now().Sub(lastBlock)
 				blocksPerSecond := int(time.Second / blockTime)
 				if blocksPerSecond > r.fftPerSecond {

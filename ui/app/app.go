@@ -26,6 +26,7 @@ func Run(controller Controller, args []string) {
 	a.app.Connect("shutdown", a.shutdown)
 
 	a.app.Run(args)
+	log.Print("app finished")
 }
 
 // Controller of the application

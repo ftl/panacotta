@@ -2,6 +2,7 @@ package rtlsdr
 
 import (
 	"log"
+	"math"
 	"sync"
 	"time"
 
@@ -47,7 +48,7 @@ func Open(centerFrequency int, sampleRate int, blockSize int, frequencyCorrectio
 	result := Dongle{
 		device:    device,
 		asyncRead: new(sync.WaitGroup),
-		samples:   make(chan []byte, 1),
+		samples:   make(chan []complex128, 1),
 	}
 
 	go func() {
@@ -65,11 +66,11 @@ type Dongle struct {
 	blockSize int
 	asyncRead *sync.WaitGroup
 	lastInput time.Time
-	samples   chan []byte
+	samples   chan []complex128
 }
 
 // Samples from the dongle
-func (d *Dongle) Samples() <-chan []byte {
+func (d *Dongle) Samples() <-chan []complex128 {
 	return d.samples
 }
 
@@ -83,9 +84,23 @@ func (d *Dongle) Close() error {
 
 func (d *Dongle) incomingData(data []byte) {
 	select {
-	case d.samples <- data:
+	case d.samples <- normalizeSamples(data):
 		d.lastInput = time.Now()
 	default:
-		// log.Print("RTL buffer overflow, dropping incoming data")
+		log.Print("RTL buffer overflow, dropping incoming data")
 	}
+}
+
+func normalizeSamples(block []byte) []complex128 {
+	result := make([]complex128, len(block)/2)
+	for i := 0; i < len(block); i += 2 {
+		qSample := normalizeSampleUint8(block[i])
+		iSample := normalizeSampleUint8(block[i+1])
+		result[i/2] = complex(iSample, qSample)
+	}
+	return result
+}
+
+func normalizeSampleUint8(s byte) float64 {
+	return (float64(s) - float64(math.MaxInt8)) / float64(math.MaxInt8)
 }

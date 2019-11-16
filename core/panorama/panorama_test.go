@@ -11,20 +11,20 @@ import (
 func TestWidth(t *testing.T) {
 	p := New(100, core.FrequencyRange{1000.0, 1200.0}, 1100.0)
 
-	p.SetWidth(200)
+	p.SetSize(200, 100)
 
 	assert.Equal(t, core.Px(200), p.width)
 	assert.Equal(t, core.Frequency(900.0), p.From())
 	assert.Equal(t, core.Frequency(1300.0), p.To())
 
-	p.SetWidth(50)
+	p.SetSize(50, 100)
 
 	assert.Equal(t, core.Px(50), p.width)
 	assert.Equal(t, core.Frequency(1050.0), p.From())
 	assert.Equal(t, core.Frequency(1150.0), p.To())
 
 	p.SetVFO(core.VFO{1130.0, 10.0, ""})
-	p.SetWidth(100)
+	p.SetSize(100, 100)
 
 	assert.Equal(t, core.Px(100), p.width)
 	assert.Equal(t, core.Frequency(970.0), p.From())
@@ -112,23 +112,15 @@ func TestZoom(t *testing.T) {
 func TestDrag(t *testing.T) {
 	p := New(1000, core.FrequencyRange{100000.0, 120000.0}, 110000.0)
 
-	p.Drag(-500)
+	p.Drag(-10000.0)
 
 	assert.Equal(t, core.Frequency(90000.0), p.From())
 	assert.Equal(t, core.Frequency(110000.0), p.To())
 
-	p.Drag(500)
+	p.Drag(10000.0)
 
 	assert.Equal(t, core.Frequency(100000.0), p.From())
 	assert.Equal(t, core.Frequency(120000.0), p.To())
-}
-
-func TestFrequencyAt(t *testing.T) {
-	p := New(1000, core.FrequencyRange{100000.0, 120000.0}, 110000.0)
-
-	assert.Equal(t, core.Frequency(105000.0), p.FrequencyAt(250))
-	assert.Equal(t, core.Frequency(110000.0), p.FrequencyAt(500))
-	assert.Equal(t, core.Frequency(115000.0), p.FrequencyAt(750))
 }
 
 func TestFrequencyScale(t *testing.T) {
@@ -141,7 +133,7 @@ func TestFrequencyScale(t *testing.T) {
 	assert.True(t, offset1 > 200)
 	assert.True(t, scale1[1].X-scale1[0].X < 300)
 
-	p.SetWidth(2000)
+	p.SetSize(2000, 100)
 	scale2 := p.frequencyScale()
 	offset2 := int(scale2[1].X - scale2[0].X)
 

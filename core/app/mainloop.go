@@ -1,11 +1,14 @@
 package app
 
 import (
+	"log"
 	"math"
 	"time"
 
 	"github.com/ftl/panacotta/core"
 )
+
+const redrawInterval = (1 * time.Second) / time.Duration(5) // TODO this should be configurable
 
 func newMainLoop(samplesInput core.SamplesInput, dsp dspType, vfo vfoType, panorama panoramaType) *mainLoop {
 	result := &mainLoop{
@@ -14,8 +17,10 @@ func newMainLoop(samplesInput core.SamplesInput, dsp dspType, vfo vfoType, panor
 		vfo:          vfo,
 		panorama:     panorama,
 
+		redrawTick: time.NewTicker(redrawInterval),
+
 		panoramaData:   make(chan core.Panorama, 1),
-		panoramaWidth:  make(chan core.Px, 1),
+		panoramaSize:   make(chan core.PxPoint, 1),
 		tuneTo:         make(chan core.Frequency, 1),
 		tuneBy:         make(chan core.Frequency, 1),
 		toggleViewMode: make(chan struct{}, 1),
@@ -35,8 +40,10 @@ type mainLoop struct {
 	tuner        tuner
 	panorama     panoramaType
 
+	redrawTick *time.Ticker
+
 	panoramaData   chan core.Panorama
-	panoramaWidth  chan core.Px
+	panoramaSize   chan core.PxPoint
 	tuneTo         chan core.Frequency
 	tuneBy         chan core.Frequency
 	toggleViewMode chan struct{}
@@ -47,7 +54,7 @@ type mainLoop struct {
 
 // DSP from the main loop's perspective.
 type dspType interface {
-	ProcessSamples(samples []byte, fftRange core.FrequencyRange, vfo core.VFO)
+	ProcessSamples(samples []complex128, fftRange core.FrequencyRange, vfo core.VFO)
 	FFT() chan core.FFT
 }
 
@@ -62,7 +69,7 @@ type vfoType interface {
 type panoramaType interface {
 	VFO() (core.VFO, core.Band)
 	FrequencyRange() core.FrequencyRange
-	SetWidth(core.Px)
+	SetSize(core.Px, core.Px)
 	SetFFT(core.FFT)
 	SetVFO(core.VFO)
 	Data() core.Panorama
@@ -81,11 +88,16 @@ func (m *mainLoop) Run(stop chan struct{}) {
 			m.dsp.ProcessSamples(samples, frequencyRange, vfo)
 		case fft := <-m.dsp.FFT():
 			m.panorama.SetFFT(fft)
-			m.panoramaData <- m.panorama.Data() // TODO do this with a timer, based on the desired frame rate
+		case <-m.redrawTick.C:
+			select {
+			case m.panoramaData <- m.panorama.Data():
+			default:
+				log.Print("trigger redraw hangs")
+			}
 		case vfo := <-m.vfo.Data():
 			m.panorama.SetVFO(vfo)
-		case width := <-m.panoramaWidth:
-			m.panorama.SetWidth(width)
+		case size := <-m.panoramaSize:
+			m.panorama.SetSize(size.X, size.Y)
 		case f := <-m.tuneTo:
 			m.vfo.TuneTo(f)
 		case Δf := <-m.tuneBy:
@@ -99,9 +111,11 @@ func (m *mainLoop) Run(stop chan struct{}) {
 		case <-m.resetZoom:
 			m.panorama.ResetZoom()
 		case <-stop:
+			m.redrawTick.Stop()
 			return
 		}
 	}
+	log.Print("main loop stopped")
 }
 
 // Panorama data for drawing
@@ -110,48 +124,84 @@ func (m *mainLoop) Panorama() <-chan core.Panorama {
 }
 
 // SetPanoramaWidth in Px
-func (m *mainLoop) SetPanoramaWidth(width core.Px) {
-	m.panoramaWidth <- width
+func (m *mainLoop) SetPanoramaSize(width, height core.Px) {
+	select {
+	case m.panoramaSize <- core.PxPoint{width, height}:
+	default:
+		log.Print("SetPanoramaSize hangs")
+	}
 }
 
 // TuneTo the given frequency.
 func (m *mainLoop) TuneTo(f core.Frequency) {
-	m.tuneTo <- f
+	select {
+	case m.tuneTo <- f:
+	default:
+		log.Print("TuneTo hangs")
+	}
 }
 
 // TuneBy the given frequency.
 func (m *mainLoop) TuneBy(Δf core.Frequency) {
-	m.tuneBy <- Δf
+	select {
+	case m.tuneBy <- Δf:
+	default:
+		log.Print("TuneBy hangs")
+	}
 }
 
 // TuneUp the VFO.
 func (m *mainLoop) TuneUp() {
-	m.tuneBy <- m.tuner.dial()
+	select {
+	case m.tuneBy <- m.tuner.dial():
+	default:
+		log.Print("TuneUp hangs")
+	}
 }
 
 // TuneDown the VFO.
 func (m *mainLoop) TuneDown() {
-	m.tuneBy <- -m.tuner.dial()
+	select {
+	case m.tuneBy <- -m.tuner.dial():
+	default:
+		log.Print("TuneDown hangs")
+	}
 }
 
 // ToggleViewMode of the panorama.
 func (m *mainLoop) ToggleViewMode() {
-	m.toggleViewMode <- struct{}{}
+	select {
+	case m.toggleViewMode <- struct{}{}:
+	default:
+		log.Print("ToggleViewMode hangs")
+	}
 }
 
 // ZoomIn on the panorama.
 func (m *mainLoop) ZoomIn() {
-	m.zoomIn <- struct{}{}
+	select {
+	case m.zoomIn <- struct{}{}:
+	default:
+		log.Print("ZoomIn hangs")
+	}
 }
 
 // ZoomOut of the panorama.
 func (m *mainLoop) ZoomOut() {
-	m.zoomOut <- struct{}{}
+	select {
+	case m.zoomOut <- struct{}{}:
+	default:
+		log.Print("ZoomOut hangs")
+	}
 }
 
 // ResetZoom of the panorama.
 func (m *mainLoop) ResetZoom() {
-	m.resetZoom <- struct{}{}
+	select {
+	case m.resetZoom <- struct{}{}:
+	default:
+		log.Print("ResetZoom hangs")
+	}
 }
 
 type tuner struct {
