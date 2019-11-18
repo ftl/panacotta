@@ -41,6 +41,7 @@ type mainLoop struct {
 	panorama     panoramaType
 
 	redrawTick *time.Ticker
+	lastRedraw time.Time
 
 	panoramaData   chan core.Panorama
 	panoramaSize   chan core.PxPoint
@@ -84,6 +85,10 @@ func (m *mainLoop) Run(stop chan struct{}) {
 	for {
 		select {
 		case samples := <-m.samplesInput.Samples():
+			if time.Since(m.lastRedraw) < redrawInterval/2 {
+				continue
+			}
+
 			vfo, _ := m.panorama.VFO()
 			frequencyRange := m.panorama.FrequencyRange()
 			m.dsp.ProcessSamples(samples, frequencyRange, vfo)
@@ -92,6 +97,7 @@ func (m *mainLoop) Run(stop chan struct{}) {
 		case <-m.redrawTick.C:
 			select {
 			case m.panoramaData <- m.panorama.Data():
+				m.lastRedraw = time.Now()
 			default:
 				log.Print("trigger redraw hangs")
 			}
