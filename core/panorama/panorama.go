@@ -42,7 +42,7 @@ func New(width core.Px, frequencyRange core.FrequencyRange, vfoFrequency core.Fr
 	result := Panorama{
 		width:          width,
 		frequencyRange: frequencyRange,
-		dbRange:        core.DBRange{From: -60, To: 10},
+		dbRange:        core.DBRange{From: -130, To: 10},
 		resolution: map[ViewMode]core.HzPerPx{
 			ViewFixed:    calcResolution(frequencyRange, width),
 			ViewCentered: defaultCenteredResolution,
