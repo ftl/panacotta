@@ -16,8 +16,9 @@ type Panorama struct {
 	vfo            core.VFO
 	band           core.Band
 
-	resolution map[ViewMode]core.HzPerPx
-	viewMode   ViewMode
+	resolution    map[ViewMode]core.HzPerPx
+	viewMode      ViewMode
+	fullRangeMode bool
 
 	fft core.FFT
 }
@@ -52,6 +53,13 @@ func New(width core.Px, frequencyRange core.FrequencyRange, vfoFrequency core.Fr
 	result.vfo.Frequency = vfoFrequency
 
 	return &result
+}
+
+// NewFullSpectrum returns a new instance of panorama in full-range mode.
+func NewFullSpectrum(width core.Px, frequencyRange core.FrequencyRange, vfoFrequency core.Frequency) *Panorama {
+	result := New(width, frequencyRange, vfoFrequency)
+	result.fullRangeMode = true
+	return result
 }
 
 func calcResolution(frequencyRange core.FrequencyRange, width core.Px) core.HzPerPx {
@@ -207,6 +215,13 @@ func (p *Panorama) Drag(Δf core.Frequency) {
 
 // Data to draw the current panorama.
 func (p Panorama) Data() core.Panorama {
+	if p.fullRangeMode {
+		return p.fullRangeData()
+	}
+	return p.data()
+}
+
+func (p Panorama) data() core.Panorama {
 	resolution := p.resolution[p.viewMode]
 	result := core.Panorama{
 		FrequencyRange: p.frequencyRange,
@@ -273,8 +288,7 @@ func (p Panorama) spectrum() []core.PxPoint {
 	return result
 }
 
-// FullSpectrumData to draw the current panorama with the width of the full spectrum.
-func (p Panorama) FullSpectrumData() core.Panorama {
+func (p Panorama) fullRangeData() core.Panorama {
 	if p.fft.Range.Width() == 0 || p.width == 0 {
 		return core.Panorama{}
 	}

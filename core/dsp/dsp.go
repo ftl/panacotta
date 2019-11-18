@@ -27,6 +27,12 @@ func New(sampleRate int, ifFrequency, rxOffset core.Frequency) *DSP {
 	return &result
 }
 
+func NewFullRange(sampleRate int, ifFrequency, rxOffset core.Frequency) *DSP {
+	result := New(sampleRate, ifFrequency, rxOffset)
+	result.fullRangeMode = true
+	return result
+}
+
 type DSP struct {
 	workInput chan work
 	fft       chan core.FFT
@@ -84,12 +90,11 @@ func findBlocksize(width, max int) int {
 }
 
 func (d *DSP) doWork(work work) {
+	const filterOrder = 15
 	if work.fftRange.Width() == 0 {
 		return
 	}
 
-	const filterOrder = 15
-	d.fullRangeMode = true
 	needReconfiguration := work.fftRange != d.fftRange || work.vfo != d.vfo || len(work.samples) != d.inputBlockSize
 	if needReconfiguration {
 		d.fftRange = work.fftRange
@@ -104,22 +109,7 @@ func (d *DSP) doWork(work work) {
 	}
 
 	outputSamples := shiftAndDecimate(work.samples, toRate(d.Δf, d.sampleRate), d.decimation, d.filterCoeff)
-
-	cfft := dsp.FFT(outputSamples)
-	fft := make([]float64, len(cfft))
-	blockSize := len(fft)
-	blockCenter := blockSize / 2
-	for i, v := range cfft {
-		var resultIndex int
-		if i < blockCenter {
-			resultIndex = i + blockCenter
-		} else {
-			resultIndex = i - blockCenter
-		}
-		fft[resultIndex] = fftValueToDB(v, blockSize)
-
-		// fft[i] = fftValueToDB(v, blockSize)
-	}
+	fft := fft(outputSamples)
 
 	center := d.fftRange.Center()
 	sideband := core.Frequency(d.sampleRate / (2 * d.decimation))
@@ -284,6 +274,23 @@ func shiftAndDecimate(samples []complex128, shiftRate float64, decimation int, f
 	return outputSamples
 }
 
+func fft(samples []complex128) []float64 {
+	cfft := dsp.FFT(samples)
+	result := make([]float64, len(cfft))
+	blockSize := len(result)
+	blockCenter := blockSize / 2
+	for i, v := range cfft {
+		var resultIndex int
+		if i < blockCenter {
+			resultIndex = i + blockCenter
+		} else {
+			resultIndex = i - blockCenter
+		}
+		result[resultIndex] = fftValueToDB(v, blockSize)
+	}
+	return result
+}
+
 func fftValueToDB(fftValue complex128, blockSize int) float64 {
 	return 20.0 * math.Log10(2*math.Sqrt(math.Pow(real(fftValue), 2)+math.Pow(imag(fftValue), 2))/float64(blockSize))
 }
@@ -307,11 +314,9 @@ func firLowpass(order int, cutoffRate float64) []complex128 {
 		sum += coeff[i]
 	}
 
-	ω := 2 * math.Pi * 0.5
 	result := make([]complex128, len(coeff))
 	for i := range result {
-		t := float64(i)
-		result[i] = complex((coeff[i]/sum), 0) * cmplx.Exp(complex(0, ω*t))
+		result[i] = complex((coeff[i] / sum), 0)
 	}
 	log.Print(result)
 	return result

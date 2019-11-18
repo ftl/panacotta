@@ -24,7 +24,8 @@ type Controller struct {
 	*mainLoop
 	stop chan struct{}
 
-	config core.Configuration
+	config        core.Configuration
+	fullRangeMode bool
 }
 
 // Startup the application.
@@ -33,6 +34,7 @@ func (c *Controller) Startup() {
 	ifCenter := 67899000  // this is fix for the FT-450D and specific to our method
 	sampleRate := 1800000 // 2097152 // 1800000 // this is specific to our method
 	blockSize := 32768    // 131072    // this is the number of *complex* samples in one block
+	c.fullRangeMode = true
 
 	rxCenter := ifCenter - (sampleRate / 4)
 	log.Printf("RX @ %v %d ppm", rxCenter, c.config.FrequencyCorrection)
@@ -49,21 +51,30 @@ func (c *Controller) Startup() {
 	}
 	go vfo.Run(c.stop)
 
-	dsp := dsp.New(sampleRate, core.Frequency(ifCenter), core.Frequency(-sampleRate/4))
-	go dsp.Run(c.stop)
+	var (
+		d *dsp.DSP
+		p *panorama.Panorama
+	)
+	if c.fullRangeMode {
+		d = dsp.NewFullRange(sampleRate, core.Frequency(ifCenter), core.Frequency(-sampleRate/4))
+		p = panorama.NewFullSpectrum(0, core.FrequencyRange{}, 0)
+	} else {
+		d = dsp.New(sampleRate, core.Frequency(ifCenter), core.Frequency(-sampleRate/4))
+		p = panorama.New(0, core.FrequencyRange{}, 0)
 
-	panorama := panorama.New(0, core.FrequencyRange{}, 0)
+	}
+	go d.Run(c.stop)
 
-	c.mainLoop = newMainLoop(samplesInput, dsp, vfo, panorama)
+	c.mainLoop = newMainLoop(samplesInput, d, vfo, p)
 	go c.mainLoop.Run(c.stop)
 }
 
 func (c *Controller) openSamplesInput(centerFrequency int, sampleRate int, blockSize int, frequencyCorrection int, testmode bool) (core.SamplesInput, error) {
 	if testmode {
 		log.Printf("Testmode, using random samples input")
-		return rx.NewRandomInput(blockSize, sampleRate), nil
+		// return rx.NewRandomInput(blockSize, sampleRate), nil
 		// return rx.NewToneInput(blockSize, sampleRate, 460000.0), nil
-		// return rx.NewSweepInput(blockSize, sampleRate, -float64(sampleRate/2), float64(sampleRate/2), float64(sampleRate)*0.001), nil
+		return rx.NewSweepInput(blockSize, sampleRate, -float64(sampleRate/2), float64(sampleRate/2), float64(sampleRate)*0.001), nil
 		// return rx.NewSweepInput(blockSize, sampleRate, 0, float64(sampleRate), float64(sampleRate)*0.001), nil
 	}
 	return rtlsdr.Open(centerFrequency, sampleRate, blockSize, frequencyCorrection)
