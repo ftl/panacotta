@@ -16,8 +16,9 @@ import (
 
 func New(sampleRate int, ifFrequency, rxOffset core.Frequency) *DSP {
 	result := DSP{
-		workInput: make(chan work, 1),
-		fft:       make(chan core.FFT, 1),
+		workInput:       make(chan work, 1),
+		fft:             make(chan core.FFT, 1),
+		smoothingBuffer: make([][]float64, 10), // TODO: make this configurable/changeable at runtime
 
 		sampleRate:  sampleRate,
 		ifCenter:    ifFrequency,
@@ -44,7 +45,9 @@ type DSP struct {
 
 	vfo             core.VFO
 	fftRange        core.FrequencyRange
-	fftWindow       []float64
+	fftWindow       []complex128
+	smoothingBuffer [][]float64
+	smoothingIndex  int
 	inputBlockSize  int
 	outputBlockSize int
 	Δf              float64
@@ -105,7 +108,13 @@ func (d *DSP) doWork(work work) {
 		d.Δf = -(float64(d.fftRange.Center() - d.vfo.Frequency + d.ifCenter - d.rxCenter))
 		d.outputBlockSize = findBlocksize(int(float64(d.inputBlockSize)/(float64(d.sampleRate)/(2*float64(d.fftRange.Width())))), d.inputBlockSize)
 		d.decimation = d.inputBlockSize / d.outputBlockSize
-		d.fftWindow = window.Hamming(d.outputBlockSize)
+		fftWindow := window.Hamming(d.outputBlockSize)
+		d.fftWindow = make([]complex128, len(fftWindow))
+		for i := range fftWindow {
+			d.fftWindow[i] = complex(fftWindow[i], 0)
+		}
+		d.smoothingBuffer = make([][]float64, len(d.smoothingBuffer))
+		d.smoothingIndex = 0
 		log.Printf("fftRange %f %f %f (%f) | vfo %f | if %f | rx %f", d.fftRange.From, d.fftRange.Center(), d.fftRange.To, d.fftRange.Width(), d.vfo.Frequency, d.ifCenter, d.rxCenter)
 		log.Printf("reconfiguration: %d %d %f %f", d.decimation, d.outputBlockSize, d.fftRange.Width(), d.Δf)
 	}
@@ -121,10 +130,10 @@ func (d *DSP) doWork(work work) {
 	}
 
 	for i := range outputSamples {
-		outputSamples[i] *= complex(d.fftWindow[i], 0)
+		outputSamples[i] *= d.fftWindow[i]
 	}
 
-	fft := fft(outputSamples)
+	_, fft := d.calcFFT(outputSamples)
 
 	center := d.fftRange.Center()
 	sideband := core.Frequency(d.sampleRate / (2 * d.decimation))
@@ -281,11 +290,14 @@ func shiftAndDecimate(samples []complex128, shiftRate float64, decimation int, f
 	return outputSamples
 }
 
-func fft(samples []complex128) []float64 {
+func (d *DSP) calcFFT(samples []complex128) ([]float64, []float64) {
 	cfft := dsp.FFT(samples)
+
 	result := make([]float64, len(cfft))
 	blockSize := len(result)
 	blockCenter := blockSize / 2
+	d.smoothingBuffer[d.smoothingIndex] = make([]float64, blockSize)
+	smoothResult := make([]float64, blockSize)
 	for i, v := range cfft {
 		var resultIndex int
 		if i < blockCenter {
@@ -293,9 +305,17 @@ func fft(samples []complex128) []float64 {
 		} else {
 			resultIndex = i - blockCenter
 		}
+
 		result[resultIndex] = fftValueToDB(v, blockSize)
+		d.smoothingBuffer[d.smoothingIndex][resultIndex] = result[resultIndex]
+		for _, row := range d.smoothingBuffer {
+			if len(row) == blockSize {
+				smoothResult[resultIndex] = math.Min(smoothResult[resultIndex], row[resultIndex])
+			}
+		}
 	}
-	return result
+	d.smoothingIndex = (d.smoothingIndex + 1) % len(d.smoothingBuffer)
+	return result, smoothResult
 }
 
 func fftValueToDB(fftValue complex128, blockSize int) float64 {
