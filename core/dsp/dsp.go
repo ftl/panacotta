@@ -19,9 +19,10 @@ func New(sampleRate int, ifFrequency, rxOffset core.Frequency) *DSP {
 		workInput: make(chan work, 1),
 		fft:       make(chan core.FFT, 1),
 
-		sampleRate: sampleRate,
-		ifCenter:   ifFrequency,
-		rxCenter:   ifFrequency + rxOffset,
+		sampleRate:  sampleRate,
+		ifCenter:    ifFrequency,
+		rxCenter:    ifFrequency + rxOffset,
+		filterCoeff: firLowpass(27, 1.0/4.8),
 	}
 
 	return &result
@@ -90,7 +91,6 @@ func findBlocksize(width, max int) int {
 }
 
 func (d *DSP) doWork(work work) {
-	const filterOrder = 15
 	if work.fftRange.Width() == 0 {
 		return
 	}
@@ -103,17 +103,24 @@ func (d *DSP) doWork(work work) {
 		d.Δf = -(float64(d.fftRange.Center() - d.vfo.Frequency + d.ifCenter - d.rxCenter))
 		d.outputBlockSize = findBlocksize(int(float64(d.inputBlockSize)/(float64(d.sampleRate)/(2*float64(d.fftRange.Width())))), d.inputBlockSize)
 		d.decimation = d.inputBlockSize / d.outputBlockSize
-		d.filterCoeff = firLowpass(filterOrder, 1.0/(2.0*float64(d.decimation)))
 		log.Printf("fftRange %f %f %f (%f) | vfo %f | if %f | rx %f", d.fftRange.From, d.fftRange.Center(), d.fftRange.To, d.fftRange.Width(), d.vfo.Frequency, d.ifCenter, d.rxCenter)
 		log.Printf("reconfiguration: %d %d %f %f", d.decimation, d.outputBlockSize, d.fftRange.Width(), d.Δf)
 	}
 
-	outputSamples := shiftAndDecimate(work.samples, toRate(d.Δf, d.sampleRate), d.decimation, d.filterCoeff)
+	var outputSamples []complex128
+	if d.decimation == 1 {
+		outputSamples = shift(work.samples, toRate(d.Δf, d.sampleRate))
+	} else {
+		outputSamples = shiftAndDecimate(work.samples, toRate(d.Δf, d.sampleRate), 2, d.filterCoeff)
+		for i := d.decimation / 2; i > 1; i /= 2 {
+			outputSamples = decimate(outputSamples, 2, d.filterCoeff)
+		}
+	}
+
 	fft := fft(outputSamples)
 
 	center := d.fftRange.Center()
 	sideband := core.Frequency(d.sampleRate / (2 * d.decimation))
-
 	if d.fullRangeMode {
 		fft = padZero(fft, d.inputBlockSize)
 		sideband = core.Frequency(d.sampleRate / 2)
@@ -154,23 +161,18 @@ func shift(samples []complex128, shiftRate float64) []complex128 {
 }
 
 func filter(samples []complex128, filterCoeff []complex128) []complex128 {
+	blockSize := len(samples)
 	filterOrder := len(filterCoeff)
-	filterBuf := make([]complex128, filterOrder)
-	bufIndex := 0
 
-	outputSamples := make([]complex128, len(samples))
-
-	for i, s := range samples {
-		var out complex128
-
-		filterBuf[bufIndex] = s
-		for j, c := range filterCoeff {
-			bi := (filterOrder + bufIndex - j) % filterOrder
-			out += filterBuf[bi] * c
+	outputSamples := make([]complex128, blockSize)
+	for i := range samples {
+		j := (i - filterOrder + 1)
+		for k := filterOrder - 1; k >= 0; k-- {
+			if j >= 0 && j < blockSize {
+				outputSamples[i] += samples[j] * filterCoeff[k]
+			}
+			j++
 		}
-		bufIndex = (bufIndex + 1) % filterOrder
-
-		outputSamples[i] = out
 	}
 
 	return outputSamples
@@ -179,24 +181,31 @@ func filter(samples []complex128, filterCoeff []complex128) []complex128 {
 func shiftAndFilter(samples []complex128, shiftRate float64, filterCoeff []complex128) []complex128 {
 	ω := 2 * math.Pi * shiftRate
 
+	blockSize := len(samples)
 	filterOrder := len(filterCoeff)
-	filterBuf := make([]complex128, filterOrder)
-	bufIndex := 0
 
-	outputSamples := make([]complex128, len(samples))
+	shiftedSamples := make([]complex128, blockSize)
+	lastShifted := -1
+	outputSamples := make([]complex128, blockSize)
 
-	for i, s := range samples {
-		t := float64(i) // "time" for the shift operation
-		var out complex128
+	for i := range samples {
+		t := float64(i)
 
-		filterBuf[bufIndex] = s * cmplx.Exp(complex(0, ω*t)) // shift fftRange to center of fullRange
-		for j, c := range filterCoeff {
-			bi := (filterOrder + bufIndex - j) % filterOrder
-			out += filterBuf[bi] * c
+		j := (i - filterOrder + 1)
+		for k := filterOrder - 1; k >= 0; k-- {
+			if j >= 0 && j < blockSize {
+				var s complex128
+				if j <= lastShifted {
+					s = shiftedSamples[j]
+				} else {
+					s = samples[j] * cmplx.Exp(complex(0, ω*t))
+					shiftedSamples[j] = s
+					lastShifted = j
+				}
+				outputSamples[i] += s * filterCoeff[k]
+			}
+			j++
 		}
-
-		outputSamples[i] = out
-		bufIndex = (bufIndex + 1) % filterOrder
 	}
 
 	return outputSamples
@@ -211,30 +220,20 @@ func downsample(samples []complex128, decimation int) []complex128 {
 }
 
 func decimate(samples []complex128, decimation int, filterCoeff []complex128) []complex128 {
+	blockSize := len(samples)
 	filterOrder := len(filterCoeff)
-	filterBuf := make([]complex128, filterOrder)
-	bufIndex := 0
-	decimCountDown := 0
 
+	outputSamples := make([]complex128, blockSize/decimation)
 	outputIndex := 0
-	outputSamples := make([]complex128, len(samples)/decimation)
-
-	for _, s := range samples {
-		filterBuf[bufIndex] = s
-		if decimCountDown <= 0 {
-			decimCountDown = decimation - 1
-
-			var out complex128
-			for j, c := range filterCoeff {
-				bi := (filterOrder + bufIndex - j) % filterOrder
-				out += filterBuf[bi] * c
+	for i := 0; i < blockSize; i += decimation {
+		j := (i - filterOrder + 1)
+		for k := filterOrder - 1; k >= 0; k-- {
+			if j >= 0 && j < blockSize {
+				outputSamples[outputIndex] += samples[j] * filterCoeff[k]
 			}
-			outputSamples[outputIndex] = out
-			outputIndex++
-		} else {
-			decimCountDown--
+			j++
 		}
-		bufIndex = (bufIndex + 1) % filterOrder
+		outputIndex++
 	}
 
 	return outputSamples
@@ -243,32 +242,33 @@ func decimate(samples []complex128, decimation int, filterCoeff []complex128) []
 func shiftAndDecimate(samples []complex128, shiftRate float64, decimation int, filterCoeff []complex128) []complex128 {
 	ω := 2 * math.Pi * shiftRate
 
+	blockSize := len(samples)
 	filterOrder := len(filterCoeff)
-	filterBuf := make([]complex128, filterOrder)
-	bufIndex := 0
-	decimCountDown := 0
 
+	shiftedSamples := make([]complex128, blockSize)
+	lastShifted := -1
+	outputSamples := make([]complex128, blockSize/decimation)
 	outputIndex := 0
-	outputSamples := make([]complex128, len(samples)/decimation)
 
-	for i, s := range samples {
-		t := float64(i) // "time" for the shift operation
+	for i := 0; i < blockSize; i += decimation {
+		t := float64(i)
 
-		filterBuf[bufIndex] = s * cmplx.Exp(complex(0, ω*t)) // shift fftRange to center of fullRange
-		if decimCountDown <= 0 {
-			decimCountDown = decimation - 1
-
-			var out complex128
-			for j, c := range filterCoeff {
-				bi := (filterOrder + bufIndex - j) % filterOrder
-				out += filterBuf[bi] * c
+		j := (i - filterOrder + 1)
+		for k := filterOrder - 1; k >= 0; k-- {
+			if j >= 0 && j < blockSize {
+				var s complex128
+				if j <= lastShifted {
+					s = shiftedSamples[j]
+				} else {
+					s = samples[j] * cmplx.Exp(complex(0, ω*t))
+					shiftedSamples[j] = s
+					lastShifted = j
+				}
+				outputSamples[outputIndex] += s * filterCoeff[k]
 			}
-			outputSamples[outputIndex] = out
-			outputIndex++
-		} else {
-			decimCountDown--
+			j++
 		}
-		bufIndex = (bufIndex + 1) % filterOrder
+		outputIndex++
 	}
 
 	return outputSamples

@@ -142,6 +142,18 @@ func TestFilter(t *testing.T) {
 	}
 }
 
+func BenchmarkFilter(b *testing.B) {
+	for i := 0; i < b.N; i++ {
+		filter([]complex128{1, 2, 3, 4, 5}, []complex128{11, 7})
+	}
+}
+
+func BenchmarkShiftAndFilter(b *testing.B) {
+	for i := 0; i < b.N; i++ {
+		shiftAndFilter([]complex128{1, 2, 3, 4, 5}, 0.1, []complex128{11, 7})
+	}
+}
+
 func TestDecimate(t *testing.T) {
 	testCases := []struct {
 		samples    []complex128
@@ -172,6 +184,19 @@ func TestDecimate(t *testing.T) {
 		})
 	}
 }
+
+func BenchmarkDecimate(b *testing.B) {
+	for i := 0; i < b.N; i++ {
+		decimate([]complex128{1, 2, 3, 4, 5, 6, 7, 8}, 2, []complex128{11, 7})
+	}
+}
+
+func BenchmarkShiftAndDecimate(b *testing.B) {
+	for i := 0; i < b.N; i++ {
+		shiftAndDecimate([]complex128{1, 2, 3, 4, 5, 6, 7, 8}, 0.1, 2, []complex128{11, 7})
+	}
+}
+
 func TestFIRLowpassGoldenMaster(t *testing.T) {
 	order := 9
 	cutOff := 0.25

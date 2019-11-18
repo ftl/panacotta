@@ -26,8 +26,8 @@ func TestStopAndDone(t *testing.T) {
 
 type mockInput struct{}
 
-func (m *mockInput) Samples() <-chan []byte {
-	return make(chan []byte)
+func (m *mockInput) Samples() <-chan []complex128 {
+	return make(chan []complex128)
 }
 
 func (m *mockInput) Close() error {
@@ -46,7 +46,7 @@ func (m *mockVFO) TuneTo(f core.Frequency) {}
 
 type mockDSP struct{}
 
-func (m *mockDSP) ProcessSamples(samples []byte, fftRange core.FrequencyRange, vfo core.VFO) {}
+func (m *mockDSP) ProcessSamples(samples []complex128, fftRange core.FrequencyRange, vfo core.VFO) {}
 
 func (m *mockDSP) FFT() chan core.FFT {
 	return make(chan core.FFT)
@@ -62,7 +62,7 @@ func (m *mockPanorama) FrequencyRange() core.FrequencyRange {
 	return core.FrequencyRange{}
 }
 
-func (m *mockPanorama) SetWidth(core.Px) {}
+func (m *mockPanorama) SetSize(core.Px, core.Px) {}
 
 func (m *mockPanorama) SetFFT(core.FFT) {}
 
