@@ -44,6 +44,7 @@ type DSP struct {
 
 	vfo             core.VFO
 	fftRange        core.FrequencyRange
+	fftWindow       []float64
 	inputBlockSize  int
 	outputBlockSize int
 	Δf              float64
@@ -104,6 +105,7 @@ func (d *DSP) doWork(work work) {
 		d.Δf = -(float64(d.fftRange.Center() - d.vfo.Frequency + d.ifCenter - d.rxCenter))
 		d.outputBlockSize = findBlocksize(int(float64(d.inputBlockSize)/(float64(d.sampleRate)/(2*float64(d.fftRange.Width())))), d.inputBlockSize)
 		d.decimation = d.inputBlockSize / d.outputBlockSize
+		d.fftWindow = window.Hamming(d.outputBlockSize)
 		log.Printf("fftRange %f %f %f (%f) | vfo %f | if %f | rx %f", d.fftRange.From, d.fftRange.Center(), d.fftRange.To, d.fftRange.Width(), d.vfo.Frequency, d.ifCenter, d.rxCenter)
 		log.Printf("reconfiguration: %d %d %f %f", d.decimation, d.outputBlockSize, d.fftRange.Width(), d.Δf)
 	}
@@ -116,6 +118,10 @@ func (d *DSP) doWork(work work) {
 		for i := d.decimation / 2; i > 1; i /= 2 {
 			outputSamples = decimate(outputSamples, 2, d.filterCoeff)
 		}
+	}
+
+	for i := range outputSamples {
+		outputSamples[i] *= complex(d.fftWindow[i], 0)
 	}
 
 	fft := fft(outputSamples)
