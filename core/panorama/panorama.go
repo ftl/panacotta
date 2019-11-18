@@ -275,15 +275,33 @@ func (p Panorama) frequencyScale() []core.FrequencyMark {
 }
 
 func (p Panorama) spectrum() []core.PxPoint {
+	if len(p.fft.Data) == 0 {
+		return []core.PxPoint{}
+	}
 	resolution := p.resolution[p.viewMode]
 	fftResolution := float64(p.fft.Range.Width()) / float64(len(p.fft.Data))
-	result := make([]core.PxPoint, len(p.fft.Data))
-	for i, d := range p.fft.Data {
+	step := int(math.Max(1, math.Floor(float64(len(p.fft.Data))/float64(p.width))))
+	start := int(math.Max(0, math.Floor(float64(p.frequencyRange.From-p.fft.Range.From)/fftResolution)))
+	end := int(math.Min(float64(len(p.fft.Data)-1), math.Ceil(float64(p.frequencyRange.To-p.fft.Range.From)/fftResolution)))
+	resultLength := (end - start + 1) / step
+	if (end-start+1)%step != 0 {
+		resultLength++
+	}
+	result := make([]core.PxPoint, resultLength)
+	resultIndex := 0
+	for i := start; i <= end; i += step {
+		d := 0.0
+		for j := i; j < i+step && j < len(p.fft.Data); j++ {
+			d += p.fft.Data[j]
+		}
+		d /= float64(step)
+
 		freq := p.fft.Range.From + core.Frequency(float64(i)*fftResolution)
-		result[i] = core.PxPoint{
+		result[resultIndex] = core.PxPoint{
 			X: resolution.ToPx(freq - p.frequencyRange.From),
 			Y: core.Px((core.DB(d)-p.dbRange.From)/p.dbRange.Width()) * p.height,
 		}
+		resultIndex++
 	}
 	return result
 }
@@ -303,8 +321,8 @@ func (p Panorama) fullRangeData() core.Panorama {
 
 		VFOLine: resolution.ToPx(p.vfo.Frequency - frequencyRange.From),
 
-		FrequencyScale: p.fullSpectrumFrequencyScale(),
-		Spectrum:       p.fullSpectrum(),
+		FrequencyScale: p.fullRangeFrequencyScale(),
+		Spectrum:       p.fullRangeSpectrum(),
 	}
 
 	result.VFOFilterFrom = result.VFOLine - resolution.ToPx(p.vfo.FilterWidth/2)
@@ -313,7 +331,7 @@ func (p Panorama) fullRangeData() core.Panorama {
 	return result
 }
 
-func (p Panorama) fullSpectrumFrequencyScale() []core.FrequencyMark {
+func (p Panorama) fullRangeFrequencyScale() []core.FrequencyMark {
 	resolution := core.HzPerPx(float64(p.fft.Range.Width()) / float64(p.width))
 	frequencyRange := p.fft.Range
 
@@ -348,7 +366,7 @@ func (p Panorama) fullSpectrumFrequencyScale() []core.FrequencyMark {
 	return freqScale
 }
 
-func (p Panorama) fullSpectrum() []core.PxPoint {
+func (p Panorama) fullRangeSpectrum() []core.PxPoint {
 	resolution := core.HzPerPx(float64(p.fft.Range.Width()) / float64(p.width))
 	frequencyRange := p.fft.Range
 
