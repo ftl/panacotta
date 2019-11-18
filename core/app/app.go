@@ -69,7 +69,7 @@ func (c *Controller) Startup() {
 	}
 	go d.Run(c.stop)
 
-	c.mainLoop = newMainLoop(samplesInput, d, vfo, p)
+	c.mainLoop = newMainLoop(samplesInput, d, vfo, p, c.config.FFTPerSecond)
 	go c.mainLoop.Run(c.stop)
 }
 

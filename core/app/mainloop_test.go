@@ -10,7 +10,7 @@ import (
 )
 
 func TestStopAndDone(t *testing.T) {
-	m := newMainLoop(&mockInput{}, &mockDSP{}, &mockVFO{}, &mockPanorama{})
+	m := newMainLoop(&mockInput{}, &mockDSP{}, &mockVFO{}, &mockPanorama{}, 25)
 
 	stop := make(chan struct{})
 	start := time.Now()

@@ -8,16 +8,16 @@ import (
 	"github.com/ftl/panacotta/core"
 )
 
-const redrawInterval = (1 * time.Second) / time.Duration(5) // TODO this should be configurable
-
-func newMainLoop(samplesInput core.SamplesInput, dsp dspType, vfo vfoType, panorama panoramaType) *mainLoop {
+func newMainLoop(samplesInput core.SamplesInput, dsp dspType, vfo vfoType, panorama panoramaType, fftPerSecond int) *mainLoop {
+	redrawInterval := (1 * time.Second) / time.Duration(fftPerSecond)
 	result := &mainLoop{
 		samplesInput: samplesInput,
 		dsp:          dsp,
 		vfo:          vfo,
 		panorama:     panorama,
 
-		redrawTick: time.NewTicker(redrawInterval),
+		redrawInterval: redrawInterval,
+		redrawTick:     time.NewTicker(redrawInterval),
 
 		panoramaData:   make(chan core.Panorama, 1),
 		panoramaSize:   make(chan core.PxPoint, 1),
@@ -40,8 +40,9 @@ type mainLoop struct {
 	tuner        tuner
 	panorama     panoramaType
 
-	redrawTick *time.Ticker
-	lastRedraw time.Time
+	redrawInterval time.Duration
+	redrawTick     *time.Ticker
+	lastRedraw     time.Time
 
 	panoramaData   chan core.Panorama
 	panoramaSize   chan core.PxPoint
@@ -85,7 +86,7 @@ func (m *mainLoop) Run(stop chan struct{}) {
 	for {
 		select {
 		case samples := <-m.samplesInput.Samples():
-			if time.Since(m.lastRedraw) < redrawInterval/2 {
+			if time.Since(m.lastRedraw) < m.redrawInterval/2 {
 				continue
 			}
 
