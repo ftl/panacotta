@@ -76,6 +76,7 @@ func (d *Dongle) Samples() <-chan []complex128 {
 
 // Close the dongle.
 func (d *Dongle) Close() error {
+	defer log.Print("RTLSDR shutdown")
 	d.device.CancelAsync()
 	d.asyncRead.Wait()
 	close(d.samples)

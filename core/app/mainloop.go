@@ -80,6 +80,7 @@ type panoramaType interface {
 }
 
 func (m *mainLoop) Run(stop chan struct{}) {
+	defer log.Print("main loop shutdown")
 	for {
 		select {
 		case samples := <-m.samplesInput.Samples():
@@ -115,7 +116,6 @@ func (m *mainLoop) Run(stop chan struct{}) {
 			return
 		}
 	}
-	log.Print("main loop stopped")
 }
 
 // Panorama data for drawing

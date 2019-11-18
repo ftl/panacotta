@@ -54,19 +54,19 @@ type View struct {
 }
 
 func (v *View) run() {
+	defer log.Print("ui.panorama shutdown")
 	for {
 		select {
 		case data := <-v.controller.Panorama():
 			glib.IdleAdd(func() bool {
 				v.data = data
 				v.view.QueueDraw()
-				return true
+				return false
 			})
 		case <-v.controller.Done():
 			return
 		}
 	}
-	log.Print("View.run done")
 }
 
 func (v *View) onResize(widget *gtk.DrawingArea, event *gdk.Event) {

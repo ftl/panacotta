@@ -44,6 +44,10 @@ func (c *Controller) Startup() {
 	if err != nil {
 		log.Fatal(err)
 	}
+	go func() {
+		<-c.stop
+		samplesInput.Close()
+	}()
 
 	vfo, err := vfo.Open(c.config.VFOHost)
 	if err != nil {
@@ -82,6 +86,7 @@ func (c *Controller) openSamplesInput(centerFrequency int, sampleRate int, block
 
 // Shutdown the application.
 func (c *Controller) Shutdown() {
+	defer log.Print("core.app shutdown")
 	close(c.stop)
 }
 

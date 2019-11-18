@@ -1,6 +1,7 @@
 package rx
 
 import (
+	"log"
 	"math"
 	"math/rand"
 	"time"
@@ -14,6 +15,7 @@ func NewRandomInput(blockSize int, sampleRate int) *RandomInput {
 	}
 
 	go func() {
+		defer log.Print("RandomInput shutdown")
 		for {
 			nextBlock := make([]complex128, blockSize)
 			for i := range nextBlock {
@@ -56,6 +58,7 @@ func NewToneInput(blockSize int, sampleRate int, f float64) *ToneInput {
 	ω := 2.0 * math.Pi * ratio
 
 	go func() {
+		defer log.Print("ToneInput shutdown")
 		for {
 			nextBlock := make([]complex128, blockSize)
 			for i := range nextBlock {
@@ -96,6 +99,7 @@ func NewSweepInput(blockSize int, sampleRate int, from, to, step float64) *Sweep
 		done:    make(chan struct{}),
 	}
 	go func() {
+		defer log.Print("SweepInput shutdown")
 		f := from
 		for {
 			ratio := f / float64(sampleRate)

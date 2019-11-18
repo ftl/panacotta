@@ -18,4 +18,5 @@ func main() {
 
 	controller := coreapp.New(configuration)
 	uiapp.Run(controller, os.Args)
+	log.Print("Panacotta finished")
 }

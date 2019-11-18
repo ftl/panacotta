@@ -59,6 +59,7 @@ type work struct {
 }
 
 func (d *DSP) Run(stop chan struct{}) {
+	defer log.Print("DSP shutdown")
 	for {
 		select {
 		case work := <-d.workInput:
