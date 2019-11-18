@@ -175,31 +175,27 @@ func drawFFT(cr *cairo.Context, g geometry, data core.Panorama) rect {
 	}
 	startX := r.left + float64(data.Spectrum[0].X)
 	endX := r.left + float64(data.Spectrum[len(data.Spectrum)-1].X)
-	centerX := startX + (endX-startX)/2
 
 	cr.SetSourceRGB(1, 0, 0)
 	cr.SetLineWidth(3)
 	cr.MoveTo(startX, r.top)
 	cr.LineTo(startX, r.bottom)
 	cr.Stroke()
-	cr.MoveTo(centerX, r.top)
-	cr.LineTo(centerX, r.bottom)
-	cr.Stroke()
 	cr.MoveTo(endX, r.top)
 	cr.LineTo(endX, r.bottom)
 	cr.Stroke()
 
-	// cr.SetSourceRGBA(1, 1, 1, 0.3)
-	// cr.MoveTo(startX, r.bottom)
-	// for _, p := range data.Spectrum {
-	// 	cr.LineTo(r.left+float64(p.X), r.bottom-(float64(p.Y))
-	// }
-	// cr.MoveTo(r.left+float64(data.Spectrum[len(data.Spectrum)-1].X), r.bottom)
-	// cr.ClosePath()
-	// cr.Fill()
+	cr.SetSourceRGBA(1, 1, 1, 0.3)
+	cr.MoveTo(startX, r.bottom)
+	for _, p := range data.Spectrum {
+		cr.LineTo(r.left+float64(p.X), r.bottom-float64(p.Y))
+	}
+	cr.LineTo(r.left+float64(data.Spectrum[len(data.Spectrum)-1].X), r.bottom)
+	cr.ClosePath()
+	cr.Fill()
 
 	cr.SetSourceRGB(1, 1, 1)
-	cr.SetLineWidth(0.5)
+	cr.SetLineWidth(1.0)
 	cr.MoveTo(startX, r.bottom-float64(data.Spectrum[0].Y))
 	for _, p := range data.Spectrum {
 		cr.LineTo(r.left+float64(p.X), r.bottom-float64(p.Y))
