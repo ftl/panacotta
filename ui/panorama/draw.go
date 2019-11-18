@@ -32,7 +32,7 @@ type geometry struct {
 }
 
 func (v *View) onDraw(da *gtk.DrawingArea, cr *cairo.Context) {
-	data := v.currentData()
+	data := v.data
 
 	fillBackground(cr)
 
@@ -45,12 +45,6 @@ func (v *View) onDraw(da *gtk.DrawingArea, cr *cairo.Context) {
 	g.modeIndicator = drawModeIndicator(cr, g, data)
 	g.fft = drawFFT(cr, g, data)
 	g.vfo = drawVFO(cr, g, data)
-}
-
-func (v *View) currentData() core.Panorama {
-	v.dataLock.RLock()
-	defer v.dataLock.RUnlock()
-	return v.data
 }
 
 func fillBackground(cr *cairo.Context) {

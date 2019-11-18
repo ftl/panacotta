@@ -2,9 +2,9 @@ package panorama
 
 import (
 	"log"
-	"sync"
 
 	"github.com/gotk3/gotk3/gdk"
+	"github.com/gotk3/gotk3/glib"
 	"github.com/gotk3/gotk3/gtk"
 
 	"github.com/ftl/panacotta/core"
@@ -16,7 +16,6 @@ func New(builder *gtk.Builder, controller Controller) *View {
 	result := View{
 		view:       ui.Get(builder, "panoramaView").(*gtk.DrawingArea),
 		controller: controller,
-		dataLock:   new(sync.RWMutex),
 	}
 	result.view.Connect("draw", result.onDraw)
 	result.view.Connect("configure-event", result.onResize)
@@ -48,8 +47,7 @@ type View struct {
 	view       *gtk.DrawingArea
 	controller Controller
 
-	data     core.Panorama
-	dataLock *sync.RWMutex
+	data core.Panorama
 
 	mouse    mouse
 	keyboard keyboard
@@ -59,19 +57,16 @@ func (v *View) run() {
 	for {
 		select {
 		case data := <-v.controller.Panorama():
-			v.updateData(data)
-			v.view.QueueDraw()
+			glib.IdleAdd(func() bool {
+				v.data = data
+				v.view.QueueDraw()
+				return true
+			})
 		case <-v.controller.Done():
 			return
 		}
 	}
 	log.Print("View.run done")
-}
-
-func (v *View) updateData(data core.Panorama) {
-	v.dataLock.Lock()
-	defer v.dataLock.Unlock()
-	v.data = data
 }
 
 func (v *View) onResize(widget *gtk.DrawingArea, event *gdk.Event) {
@@ -80,6 +75,5 @@ func (v *View) onResize(widget *gtk.DrawingArea, event *gdk.Event) {
 }
 
 func (v *View) deviceToFrequency(x float64) core.Frequency {
-	data := v.currentData()
-	return data.ToHz(core.Px(x))
+	return v.data.ToHz(core.Px(x))
 }
