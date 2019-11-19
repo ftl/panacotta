@@ -18,6 +18,7 @@ func newMainLoop(samplesInput core.SamplesInput, dsp dspType, vfo vfoType, panor
 
 		redrawInterval: redrawInterval,
 		redrawTick:     time.NewTicker(redrawInterval),
+		needFFTData:    true,
 
 		panoramaData:   make(chan core.Panorama, 1),
 		panoramaSize:   make(chan core.PxPoint, 1),
@@ -42,7 +43,7 @@ type mainLoop struct {
 
 	redrawInterval time.Duration
 	redrawTick     *time.Ticker
-	lastRedraw     time.Time
+	needFFTData    bool
 
 	panoramaData   chan core.Panorama
 	panoramaSize   chan core.PxPoint
@@ -86,19 +87,20 @@ func (m *mainLoop) Run(stop chan struct{}) {
 	for {
 		select {
 		case samples := <-m.samplesInput.Samples():
-			if time.Since(m.lastRedraw) < m.redrawInterval/2 {
+			if !m.needFFTData {
 				continue
 			}
 
 			vfo, _ := m.panorama.VFO()
 			frequencyRange := m.panorama.FrequencyRange()
 			m.dsp.ProcessSamples(samples, frequencyRange, vfo)
+			m.needFFTData = false
 		case fft := <-m.dsp.FFT():
 			m.panorama.SetFFT(fft)
 		case <-m.redrawTick.C:
 			select {
 			case m.panoramaData <- m.panorama.Data():
-				m.lastRedraw = time.Now()
+				m.needFFTData = true
 			default:
 				log.Print("trigger redraw hangs")
 			}
