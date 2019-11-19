@@ -1,6 +1,7 @@
 package panorama
 
 import (
+	"fmt"
 	"log"
 	"math"
 
@@ -69,9 +70,6 @@ func calcResolution(frequencyRange core.FrequencyRange, width core.Px) core.HzPe
 func (p *Panorama) updateFrequencyRange() {
 	if math.IsNaN(float64(p.resolution[p.viewMode])) {
 		p.setupFrequencyRange()
-		return
-	}
-	if !p.frequencyRange.Contains(p.vfo.Frequency) {
 		return
 	}
 
@@ -275,7 +273,7 @@ func (p Panorama) frequencyScale() []core.FrequencyMark {
 }
 
 func (p Panorama) spectrum() []core.PxPoint {
-	if len(p.fft.Data) == 0 {
+	if len(p.fft.Data) == 0 || !(p.fft.Range.Contains(p.frequencyRange.From) && p.fft.Range.Contains(p.frequencyRange.To)) {
 		return []core.PxPoint{}
 	}
 	resolution := p.resolution[p.viewMode]
@@ -286,6 +284,9 @@ func (p Panorama) spectrum() []core.PxPoint {
 	resultLength := (end - start + 1) / step
 	if (end-start+1)%step != 0 {
 		resultLength++
+	}
+	if resultLength > len(p.fft.Data) || resultLength < 0 {
+		panic(fmt.Errorf("data %d result %d width %f fftRange %v frequencyRange %v", len(p.fft.Data), resultLength, p.width, p.fft.Range, p.frequencyRange))
 	}
 	result := make([]core.PxPoint, resultLength)
 	resultIndex := 0
