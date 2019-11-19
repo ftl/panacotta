@@ -25,7 +25,8 @@ func Open(address string) (*VFO, error) {
 		address:         address,
 		trxTimeout:      100 * time.Millisecond,
 		pollingInterval: 500 * time.Millisecond,
-		setFrequency:    make(chan core.Frequency, 1),
+		tuneTo:          make(chan core.Frequency, 1),
+		tuneBy:          make(chan core.Frequency, 1),
 		stateLock:       new(sync.RWMutex),
 		data:            make(chan core.VFO, 1),
 	}
@@ -40,26 +41,19 @@ func Open(address string) (*VFO, error) {
 
 // VFO type.
 type VFO struct {
-	address                   string
-	trx                       *protocol.Transceiver
-	trxTimeout                time.Duration
-	pollingInterval           time.Duration
-	setFrequency              chan core.Frequency
-	currentFrequency          core.Frequency
-	currentMode               string
-	currentBandwidth          core.Frequency
-	stateLock                 *sync.RWMutex
-	frequencyChangedCallbacks []FrequencyChanged
-	modeChangedCallbacks      []ModeChanged
+	address          string
+	trx              *protocol.Transceiver
+	trxTimeout       time.Duration
+	pollingInterval  time.Duration
+	tuneTo           chan core.Frequency
+	tuneBy           chan core.Frequency
+	currentFrequency core.Frequency
+	currentMode      string
+	currentBandwidth core.Frequency
+	stateLock        *sync.RWMutex
 
 	data chan core.VFO
 }
-
-// FrequencyChanged is called on frequency changes.
-type FrequencyChanged func(f core.Frequency)
-
-// ModeChanged is called on mode changes.
-type ModeChanged func(mode string, bandwidth core.Frequency)
 
 // Run the VFO.
 func (v *VFO) Run(stop chan struct{}) {
@@ -75,14 +69,19 @@ func (v *VFO) Run(stop chan struct{}) {
 					err = v.pollMode()
 				}
 
-			case f := <-v.setFrequency:
+			case f := <-v.tuneTo:
 				err = v.sendFrequency(f)
+
+			case Δf := <-v.tuneBy:
+				currentFrequency := v.CurrentFrequency()
+				err = v.sendFrequency(currentFrequency + Δf)
 
 			case <-stop:
 				return
 			}
 			if err != nil {
 				log.Print(err)
+				err = nil
 			}
 		}
 	}()
@@ -133,9 +132,6 @@ func (v *VFO) pollFrequency() error {
 
 	if v.updateCurrentFrequency(f) {
 		v.data <- core.VFO{Frequency: f, Mode: v.currentMode, FilterWidth: v.currentBandwidth}
-		for _, frequencyChanged := range v.frequencyChangedCallbacks {
-			frequencyChanged(f)
-		}
 	}
 	return nil
 }
@@ -175,10 +171,6 @@ func (v *VFO) pollMode() error {
 
 	if v.updateCurrentMode(mode, bandwidth) {
 		v.data <- core.VFO{Frequency: v.currentFrequency, Mode: mode, FilterWidth: bandwidth}
-
-		for _, modeChanged := range v.modeChangedCallbacks {
-			modeChanged(mode, bandwidth)
-		}
 	}
 	return nil
 }
@@ -206,9 +198,6 @@ func (v *VFO) sendFrequency(f core.Frequency) error {
 
 	if v.updateCurrentFrequency(f) {
 		v.data <- core.VFO{Frequency: f, Mode: v.currentMode, FilterWidth: v.currentBandwidth}
-		for _, frequencyChanged := range v.frequencyChangedCallbacks {
-			frequencyChanged(f)
-		}
 	}
 	return nil
 }
@@ -218,32 +207,22 @@ func (v *VFO) Data() <-chan core.VFO {
 	return v.data
 }
 
-// TuneBy the given frequency delta.
-func (v *VFO) TuneBy(Δf core.Frequency) {
-	select {
-	case v.setFrequency <- v.CurrentFrequency() + Δf:
-	default:
-		log.Print("VFO.TuneBy hangs")
-	}
-}
-
 // TuneTo the given frequency.
 func (v *VFO) TuneTo(f core.Frequency) {
 	select {
-	case v.setFrequency <- f:
+	case v.tuneTo <- f:
 	default:
 		log.Print("VFO.TuneTo hangs")
 	}
 }
 
-// SetFrequency sets the given frequency on the VFO.
-func (v *VFO) SetFrequency(f core.Frequency) {
-	v.TuneTo(f)
-}
-
-// MoveFrequency moves the VFO frequncy by the given delta.
-func (v *VFO) MoveFrequency(Δf core.Frequency) {
-	v.TuneBy(Δf)
+// TuneBy the given frequency delta.
+func (v *VFO) TuneBy(Δf core.Frequency) {
+	select {
+	case v.tuneBy <- Δf:
+	default:
+		log.Print("VFO.TuneBy hangs")
+	}
 }
 
 // CurrentFrequency returns the current frequency of the VFO.
@@ -253,21 +232,11 @@ func (v *VFO) CurrentFrequency() core.Frequency {
 	return v.currentFrequency
 }
 
-// OnFrequencyChange registers the given callback to be notified when the current frequency changes.
-func (v *VFO) OnFrequencyChange(f FrequencyChanged) {
-	v.frequencyChangedCallbacks = append(v.frequencyChangedCallbacks, f)
-}
-
 // CurrentMode returns the current mode and the current bandwidth of the VFO.
 func (v *VFO) CurrentMode() (string, core.Frequency) {
 	v.stateLock.RLock()
 	defer v.stateLock.RUnlock()
 	return v.currentMode, v.currentBandwidth
-}
-
-// OnModeChange registers the given callback to be notified when the current mode or bandwidth changes.
-func (v *VFO) OnModeChange(m ModeChanged) {
-	v.modeChangedCallbacks = append(v.modeChangedCallbacks, m)
 }
 
 func fToHamlib(f core.Frequency) string {
