@@ -42,7 +42,7 @@ func New(width core.Px, frequencyRange core.FrequencyRange, vfoFrequency core.Fr
 	result := Panorama{
 		width:          width,
 		frequencyRange: frequencyRange,
-		dbRange:        core.DBRange{From: -130, To: 10},
+		dbRange:        core.DBRange{From: -125, To: 15},
 		resolution: map[ViewMode]core.HzPerPx{
 			ViewFixed:    calcResolution(frequencyRange, width),
 			ViewCentered: defaultCenteredResolution,
@@ -229,6 +229,7 @@ func (p Panorama) data() core.Panorama {
 		VFOLine: resolution.ToPx(p.vfo.Frequency - p.frequencyRange.From),
 
 		FrequencyScale: p.frequencyScale(),
+		DBScale:        p.dbScale(),
 		Spectrum:       p.spectrum(),
 	}
 
@@ -269,6 +270,26 @@ func (p Panorama) frequencyScale() []core.FrequencyMark {
 	}
 
 	return freqScale
+}
+
+func (p Panorama) dbScale() []core.DBMark {
+	pxPerDB := float64(p.height) / float64(p.dbRange.Width())
+	startDB := int(p.dbRange.From) - int(p.dbRange.From)%10
+	markCount := (int(p.dbRange.To) - startDB) / 10
+	if (int(p.dbRange.To)-startDB)%10 != 0 {
+		markCount++
+	}
+
+	dbScale := make([]core.DBMark, markCount)
+	for i := range dbScale {
+		db := core.DB(startDB + i*10)
+		dbScale[i] = core.DBMark{
+			DB: db,
+			Y:  core.Px(float64(db-p.dbRange.From) * pxPerDB),
+		}
+	}
+
+	return dbScale
 }
 
 func (p Panorama) spectrum() []core.PxPoint {
@@ -319,6 +340,7 @@ func (p Panorama) fullRangeData() core.Panorama {
 		VFOLine: resolution.ToPx(p.vfo.Frequency - frequencyRange.From),
 
 		FrequencyScale: p.fullRangeFrequencyScale(),
+		DBScale:        p.dbScale(),
 		Spectrum:       p.fullRangeSpectrum(),
 	}
 

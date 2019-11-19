@@ -78,8 +78,8 @@ func TestFixedVFO(t *testing.T) {
 
 	p.SetVFO(core.VFO{2000.0, 10.0, ""})
 
-	assert.Equal(t, core.Frequency(1010.0), p.From())
-	assert.Equal(t, core.Frequency(1210.0), p.To())
+	assert.Equal(t, core.Frequency(1900.0), p.From())
+	assert.Equal(t, core.Frequency(2100.0), p.To())
 }
 
 func TestZoom(t *testing.T) {
@@ -139,4 +139,18 @@ func TestFrequencyScale(t *testing.T) {
 
 	assert.Equal(t, 9, len(scale2))
 	assert.Equal(t, offset1, offset2)
+}
+
+func TestDBScale(t *testing.T) {
+	p := New(1000, core.FrequencyRange{100300.0, 120700.0}, 110000.0)
+	p.dbRange = core.DBRange{-125, 15}
+	p.SetSize(1000, 500)
+
+	dbScale := p.dbScale()
+
+	assert.Equal(t, 14, len(dbScale))
+	assert.Equal(t, core.DB(-120), dbScale[0].DB)
+	assert.Equal(t, 17, int(dbScale[0].Y))
+	assert.Equal(t, core.DB(10), dbScale[13].DB)
+	assert.Equal(t, 482, int(dbScale[13].Y))
 }

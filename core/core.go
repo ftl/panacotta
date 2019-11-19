@@ -100,6 +100,12 @@ type FrequencyMark struct {
 	X         Px
 }
 
+// DBMark on the dB scale
+type DBMark struct {
+	DB DB
+	Y  Px
+}
+
 // HzPerPx unit for resolution
 type HzPerPx float64
 
@@ -124,6 +130,7 @@ type Panorama struct {
 	VFOFilterFrom  Px
 	VFOFilterTo    Px
 	FrequencyScale []FrequencyMark
+	DBScale        []DBMark
 	Spectrum       []PxPoint
 }
 

@@ -16,6 +16,7 @@ func New(builder *gtk.Builder, controller Controller) *View {
 	result := View{
 		view:       ui.Get(builder, "panoramaView").(*gtk.DrawingArea),
 		controller: controller,
+		fftTopLeft: core.PxPoint{X: 75, Y: 20},
 	}
 	result.view.Connect("draw", result.onDraw)
 	result.view.Connect("configure-event", result.onResize)
@@ -46,6 +47,7 @@ type Controller interface {
 type View struct {
 	view       *gtk.DrawingArea
 	controller Controller
+	fftTopLeft core.PxPoint
 
 	data core.Panorama
 
@@ -71,9 +73,9 @@ func (v *View) run() {
 
 func (v *View) onResize(widget *gtk.DrawingArea, event *gdk.Event) {
 	e := gdk.EventConfigureNewFromEvent(event)
-	v.controller.SetPanoramaSize(core.Px(e.Width()), core.Px(e.Height()))
+	v.controller.SetPanoramaSize(core.Px(e.Width())-v.fftTopLeft.X, core.Px(e.Height())-v.fftTopLeft.Y)
 }
 
 func (v *View) deviceToFrequency(x float64) core.Frequency {
-	return v.data.ToHz(core.Px(x))
+	return v.data.ToHz(core.Px(x) - v.fftTopLeft.X)
 }

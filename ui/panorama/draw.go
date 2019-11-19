@@ -38,6 +38,8 @@ func (v *View) onDraw(da *gtk.DrawingArea, cr *cairo.Context) {
 
 	var g geometry
 	g.widget.bottom, g.widget.right = float64(da.GetAllocatedHeight()), float64(da.GetAllocatedWidth())
+	g.fft.left = float64(v.fftTopLeft.X)
+	g.fft.top = float64(v.fftTopLeft.Y)
 
 	g.dbScale = drawDBScale(cr, g, data)
 	g.bandIndicator = drawBandIndicator(cr, g, data)
@@ -59,9 +61,28 @@ func drawDBScale(cr *cairo.Context, g geometry, data core.Panorama) rect {
 	cr.Save()
 	defer cr.Restore()
 
+	const spacing = float64(2.0)
 	r := rect{
-		right:  0,
+		right:  g.fft.left,
+		top:    g.fft.top,
 		bottom: g.widget.bottom,
+	}
+
+	cr.SetFontSize(10.0)
+	cr.SetSourceRGB(0.8, 0.8, 0.8)
+	cr.SetLineWidth(0.5)
+	cr.SetDash([]float64{2, 2}, 0)
+	for _, mark := range data.DBScale {
+		y := r.bottom - float64(mark.Y)
+		cr.MoveTo(r.right, y)
+		cr.LineTo(g.widget.right, y)
+		// TODO maybe use a color indication for the signal level similar to the waterfall
+		cr.Stroke()
+
+		dbText := fmt.Sprintf("%.0fdB", mark.DB)
+		extents := cr.TextExtents(dbText)
+		cr.MoveTo(r.right-extents.Width-spacing, y+extents.Height/2)
+		cr.ShowText(dbText)
 	}
 
 	return r
@@ -71,10 +92,27 @@ func drawBandIndicator(cr *cairo.Context, g geometry, data core.Panorama) rect {
 	cr.Save()
 	defer cr.Restore()
 
+	const spacing = float64(2.0)
 	r := rect{
 		right:  g.dbScale.right,
-		bottom: g.widget.bottom,
+		bottom: g.dbScale.top,
 	}
+
+	cr.SetFontSize(15.0)
+	cr.SetSourceRGB(0.8, 0.8, 0.8)
+	cr.SetLineWidth(0.5)
+
+	bandText := string(data.Band.Name)
+	extents := cr.TextExtents(bandText)
+	x := (r.right - extents.Width - spacing)
+	y := (r.bottom + extents.Height) / 2
+
+	cr.MoveTo(x, y)
+	cr.ShowText(bandText)
+
+	cr.MoveTo(r.left, r.bottom)
+	cr.LineTo(r.right, r.bottom)
+	cr.Stroke()
 
 	return r
 }
@@ -95,7 +133,6 @@ func drawFrequencyScale(cr *cairo.Context, g geometry, data core.Panorama) rect 
 
 	cr.SetSourceRGB(0.8, 0.8, 0.8)
 	cr.SetLineWidth(0.5)
-
 	cr.SetDash([]float64{2, 2}, 0)
 	for _, mark := range data.FrequencyScale {
 		x := r.left + float64(mark.X)
@@ -164,9 +201,9 @@ func drawFFT(cr *cairo.Context, g geometry, data core.Panorama) rect {
 	defer cr.Restore()
 
 	r := rect{
-		left:   g.dbScale.right,
+		left:   g.fft.left,
 		right:  g.widget.right,
-		top:    g.modeIndicator.bottom,
+		top:    g.fft.top,
 		bottom: g.widget.bottom,
 	}
 
@@ -174,16 +211,6 @@ func drawFFT(cr *cairo.Context, g geometry, data core.Panorama) rect {
 		return r
 	}
 	startX := r.left + float64(data.Spectrum[0].X)
-	endX := r.left + float64(data.Spectrum[len(data.Spectrum)-1].X)
-
-	cr.SetSourceRGB(1, 0, 0)
-	cr.SetLineWidth(3)
-	cr.MoveTo(startX, r.top)
-	cr.LineTo(startX, r.bottom)
-	cr.Stroke()
-	cr.MoveTo(endX, r.top)
-	cr.LineTo(endX, r.bottom)
-	cr.Stroke()
 
 	cr.SetSourceRGBA(1, 1, 1, 0.3)
 	cr.MoveTo(startX, r.bottom)
@@ -221,17 +248,11 @@ func drawVFO(cr *cairo.Context, g geometry, data core.Panorama) rect {
 	freqText := fmt.Sprintf("%.2fkHz", data.VFO.Frequency/1000)
 	freqExtents := cr.TextExtents(freqText)
 	padding := 4.0
-	boxWidth := math.Max(vfoExtents.Width, freqExtents.Width) + 2*padding
-	boxHeight := vfoExtents.Height + freqExtents.Height + 3*padding
 	filterX := g.fft.left + float64(data.VFOFilterFrom)
 	filterWidth := float64(data.VFOFilterTo - data.VFOFilterFrom)
 
 	cr.SetSourceRGBA(0.6, 0.9, 1.0, 0.2)
 	cr.Rectangle(filterX, r.top, filterWidth, r.height())
-	cr.Fill()
-
-	cr.SetSourceRGBA(0, 0, 0, 0.75)
-	cr.Rectangle(freqX, r.top, boxWidth, boxHeight)
 	cr.Fill()
 
 	cr.SetLineWidth(1.5)
