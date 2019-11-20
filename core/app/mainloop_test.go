@@ -82,4 +82,6 @@ func (m *mockPanorama) ZoomIn() {}
 
 func (m *mockPanorama) ZoomOut() {}
 
+func (m *mockPanorama) ZoomToBand() {}
+
 func (m *mockPanorama) ResetZoom() {}

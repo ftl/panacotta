@@ -11,6 +11,7 @@ import (
 type mouse struct {
 	buttonPressed  bool
 	doublePressed  bool
+	x, y           float64
 	startX, startY float64
 	button         uint
 	dragThreshold  float64
@@ -66,7 +67,7 @@ func (v *View) onButtonRelease(da *gtk.DrawingArea, e *gdk.Event) {
 func (v *View) onClick(button uint) {
 	switch button {
 	case 1:
-		v.controller.TuneTo(v.deviceToFrequency(v.mouse.startX))
+		v.onSingleLeftClick(v.mouse.startX, v.mouse.startY)
 	case 2:
 		v.controller.ToggleViewMode()
 	default:
@@ -74,23 +75,47 @@ func (v *View) onClick(button uint) {
 	}
 }
 
+func (v *View) onSingleLeftClick(x, y float64) {
+	pointer := point{x, y}
+	for _, r := range v.geometry.peaks {
+		if r.contains(pointer) {
+			f := v.deviceToFrequency(r.left + (r.right-r.left)/2)
+			v.controller.TuneTo(f)
+			return
+		}
+	}
+	if v.geometry.vfo.contains(pointer) {
+		v.controller.ToggleViewMode()
+	} else if v.geometry.fft.contains(pointer) {
+		v.controller.TuneTo(v.deviceToFrequency(x))
+	}
+}
+
 func (v *View) onDoubleClick(button uint) {
-	log.Printf("double click %d", button)
+	switch button {
+	case 1:
+		v.onDoubleLeftClick(v.mouse.startX, v.mouse.startY)
+	default:
+		log.Printf("double click %d", button)
+	}
+}
+
+func (v *View) onDoubleLeftClick(x, y float64) {
+	pointer := point{x, y}
+	if v.geometry.bandIndicator.contains(pointer) {
+		v.controller.ZoomToBand()
+	}
 }
 
 func (v *View) onPointerMotion(da *gtk.DrawingArea, e *gdk.Event) {
-	var x, y float64
-	if v.mouse.buttonPressed {
-		motionEvent := gdk.EventMotionNewFromEvent(e)
-		x, y = motionEvent.MotionVal()
-
-		if math.Abs(v.mouse.startX-x) > v.mouse.dragThreshold {
-			v.mouse.dragging = true
-		}
+	motionEvent := gdk.EventMotionNewFromEvent(e)
+	v.mouse.x, v.mouse.y = motionEvent.MotionVal()
+	if v.mouse.buttonPressed && math.Abs(v.mouse.startX-v.mouse.x) > v.mouse.dragThreshold {
+		v.mouse.dragging = true
 	}
 
 	if v.mouse.dragging {
-		log.Printf("dragging x %f y %f", x, y)
+		log.Printf("dragging x %f y %f", v.mouse.x, v.mouse.y)
 	}
 }
 

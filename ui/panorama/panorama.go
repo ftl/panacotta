@@ -16,7 +16,7 @@ func New(builder *gtk.Builder, controller Controller) *View {
 	result := View{
 		view:       ui.Get(builder, "panoramaView").(*gtk.DrawingArea),
 		controller: controller,
-		fftTopLeft: core.PxPoint{X: 75, Y: 20},
+		fftTopLeft: core.PxPoint{X: 75, Y: 30},
 	}
 	result.view.Connect("draw", result.onDraw)
 	result.view.Connect("configure-event", result.onResize)
@@ -40,6 +40,7 @@ type Controller interface {
 	ToggleViewMode()
 	ZoomIn()
 	ZoomOut()
+	ZoomToBand()
 	ResetZoom()
 }
 
@@ -49,7 +50,8 @@ type View struct {
 	controller Controller
 	fftTopLeft core.PxPoint
 
-	data core.Panorama
+	data     core.Panorama
+	geometry geometry
 
 	mouse    mouse
 	keyboard keyboard

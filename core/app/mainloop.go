@@ -27,6 +27,7 @@ func newMainLoop(samplesInput core.SamplesInput, dsp dspType, vfo vfoType, panor
 		toggleViewMode: make(chan struct{}, 1),
 		zoomIn:         make(chan struct{}, 1),
 		zoomOut:        make(chan struct{}, 1),
+		zoomToBand:     make(chan struct{}, 1),
 		resetZoom:      make(chan struct{}, 1),
 	}
 
@@ -52,6 +53,7 @@ type mainLoop struct {
 	toggleViewMode chan struct{}
 	zoomIn         chan struct{}
 	zoomOut        chan struct{}
+	zoomToBand     chan struct{}
 	resetZoom      chan struct{}
 }
 
@@ -79,6 +81,7 @@ type panoramaType interface {
 	ToggleViewMode()
 	ZoomIn()
 	ZoomOut()
+	ZoomToBand()
 	ResetZoom()
 }
 
@@ -118,6 +121,8 @@ func (m *mainLoop) Run(stop chan struct{}) {
 			m.panorama.ZoomIn()
 		case <-m.zoomOut:
 			m.panorama.ZoomOut()
+		case <-m.zoomToBand:
+			m.panorama.ZoomToBand()
 		case <-m.resetZoom:
 			m.panorama.ResetZoom()
 		case <-stop:
@@ -201,6 +206,15 @@ func (m *mainLoop) ZoomOut() {
 	case m.zoomOut <- struct{}{}:
 	default:
 		log.Print("ZoomOut hangs")
+	}
+}
+
+// ZoomToBand of the panorama.
+func (m *mainLoop) ZoomToBand() {
+	select {
+	case m.zoomToBand <- struct{}{}:
+	default:
+		log.Print("ZoomToBand hangs")
 	}
 }
 

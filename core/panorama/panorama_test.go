@@ -96,7 +96,7 @@ func TestZoom(t *testing.T) {
 	assert.Equal(t, core.Frequency(120000.0), p.To())
 
 	p.viewMode = ViewCentered
-	p.ZoomTo(core.FrequencyRange{110000.0, 115000.0})
+	p.zoomTo(core.FrequencyRange{110000.0, 115000.0})
 
 	assert.Equal(t, core.Frequency(110000.0), p.From())
 	assert.Equal(t, core.Frequency(115000.0), p.To())

@@ -21,7 +21,16 @@ func (r rect) height() float64 {
 	return math.Abs(r.top - r.bottom)
 }
 
+func (r rect) contains(p point) bool {
+	return r.left <= p.x && r.right >= p.x && r.top <= p.y && r.bottom >= p.y
+}
+
+type point struct {
+	x, y float64
+}
+
 type geometry struct {
+	mouse          point
 	widget         rect
 	dbScale        rect
 	bandIndicator  rect
@@ -29,6 +38,7 @@ type geometry struct {
 	modeIndicator  rect
 	fft            rect
 	vfo            rect
+	peaks          []rect
 }
 
 func (v *View) onDraw(da *gtk.DrawingArea, cr *cairo.Context) {
@@ -37,6 +47,7 @@ func (v *View) onDraw(da *gtk.DrawingArea, cr *cairo.Context) {
 	fillBackground(cr)
 
 	var g geometry
+	g.mouse = point{v.mouse.x, v.mouse.y}
 	g.widget.bottom, g.widget.right = float64(da.GetAllocatedHeight()), float64(da.GetAllocatedWidth())
 	g.fft.left = float64(v.fftTopLeft.X)
 	g.fft.top = float64(v.fftTopLeft.Y)
@@ -47,6 +58,9 @@ func (v *View) onDraw(da *gtk.DrawingArea, cr *cairo.Context) {
 	g.modeIndicator = drawModeIndicator(cr, g, data)
 	g.fft = drawFFT(cr, g, data)
 	g.vfo = drawVFO(cr, g, data)
+	g.peaks = drawPeaks(cr, g, data)
+
+	v.geometry = g
 }
 
 func fillBackground(cr *cairo.Context) {
@@ -85,6 +99,14 @@ func drawDBScale(cr *cairo.Context, g geometry, data core.Panorama) rect {
 		cr.ShowText(dbText)
 	}
 
+	cr.SetSourceRGB(1.0, 0.3, 0.3)
+	cr.SetLineWidth(1.0)
+	cr.SetDash([]float64{2, 2}, 0)
+	y := r.bottom - float64(data.MeanLine)
+	cr.MoveTo(r.left, y)
+	cr.LineTo(g.widget.right, y)
+	cr.Stroke()
+
 	return r
 }
 
@@ -94,13 +116,18 @@ func drawBandIndicator(cr *cairo.Context, g geometry, data core.Panorama) rect {
 
 	const spacing = float64(2.0)
 	r := rect{
+		left:   g.dbScale.left,
 		right:  g.dbScale.right,
 		bottom: g.dbScale.top,
 	}
+	mouseOver := r.contains(g.mouse)
 
+	if mouseOver {
+		cr.SetSourceRGB(1, 1, 1)
+	} else {
+		cr.SetSourceRGB(0.8, 0.8, 0.8)
+	}
 	cr.SetFontSize(15.0)
-	cr.SetSourceRGB(0.8, 0.8, 0.8)
-	cr.SetLineWidth(0.5)
 
 	bandText := string(data.Band.Name)
 	extents := cr.TextExtents(bandText)
@@ -110,6 +137,8 @@ func drawBandIndicator(cr *cairo.Context, g geometry, data core.Panorama) rect {
 	cr.MoveTo(x, y)
 	cr.ShowText(bandText)
 
+	cr.SetSourceRGB(0.8, 0.8, 0.8)
+	cr.SetLineWidth(0.5)
 	cr.MoveTo(r.left, r.bottom)
 	cr.LineTo(r.right, r.bottom)
 	cr.Stroke()
@@ -123,7 +152,7 @@ func drawFrequencyScale(cr *cairo.Context, g geometry, data core.Panorama) rect 
 
 	const spacing = float64(2.0)
 	r := rect{
-		left:  g.dbScale.right,
+		left:  g.fft.left,
 		right: g.widget.right,
 	}
 
@@ -157,9 +186,9 @@ func drawModeIndicator(cr *cairo.Context, g geometry, data core.Panorama) rect {
 
 	const height = float64(5.0)
 	r := rect{
-		left:  g.dbScale.right,
+		left:  g.frequencyScale.left,
 		top:   g.frequencyScale.bottom,
-		right: g.widget.right,
+		right: g.frequencyScale.right,
 	}
 	r.bottom = r.top + 2*height
 
@@ -250,8 +279,16 @@ func drawVFO(cr *cairo.Context, g geometry, data core.Panorama) rect {
 	padding := 4.0
 	filterX := g.fft.left + float64(data.VFOFilterFrom)
 	filterWidth := float64(data.VFOFilterTo - data.VFOFilterFrom)
+	r.left = filterX
+	r.right = filterX + filterWidth
+	leftSide := freqX+padding+freqExtents.Width < g.fft.right
+	mouseOver := r.contains(g.mouse)
 
-	cr.SetSourceRGBA(0.6, 0.9, 1.0, 0.2)
+	if mouseOver {
+		cr.SetSourceRGBA(0.6, 0.9, 1.0, 0.5)
+	} else {
+		cr.SetSourceRGBA(0.6, 0.9, 1.0, 0.2)
+	}
 	cr.Rectangle(filterX, r.top, filterWidth, r.height())
 	cr.Fill()
 
@@ -262,10 +299,49 @@ func drawVFO(cr *cairo.Context, g geometry, data core.Panorama) rect {
 	cr.Stroke()
 
 	cr.SetSourceRGB(0.6, 0.9, 1.0)
-	cr.MoveTo(freqX+padding, r.top+vfoExtents.Height+padding)
+	if leftSide {
+		cr.MoveTo(freqX+padding, r.top+vfoExtents.Height+padding)
+	} else {
+		cr.MoveTo(freqX-padding-vfoExtents.Width, r.top+vfoExtents.Height+padding)
+	}
 	cr.ShowText("VFO")
-	cr.MoveTo(freqX+padding, r.top+vfoExtents.Height+freqExtents.Height+2*padding)
+	if leftSide {
+		cr.MoveTo(freqX+padding, r.top+vfoExtents.Height+freqExtents.Height+2*padding)
+	} else {
+		cr.MoveTo(freqX-padding-freqExtents.Width, r.top+vfoExtents.Height+freqExtents.Height+2*padding)
+	}
 	cr.ShowText(freqText)
 
 	return r
+}
+
+func drawPeaks(cr *cairo.Context, g geometry, data core.Panorama) []rect {
+	cr.Save()
+	defer cr.Restore()
+
+	filterWidth := float64(data.VFOFilterTo - data.VFOFilterFrom)
+
+	result := make([]rect, len(data.Peaks))
+	for i, peak := range data.Peaks {
+		x := g.fft.left + float64(peak)
+		r := rect{
+			left:   x - filterWidth/2,
+			top:    g.fft.top,
+			right:  x + filterWidth/2,
+			bottom: g.fft.bottom,
+		}
+		mouseOver := r.contains(g.mouse)
+
+		if mouseOver {
+			cr.SetSourceRGBA(0.8, 0.8, 0.8, 0.5)
+		} else {
+			cr.SetSourceRGBA(0.8, 0.8, 0.8, 0.2)
+		}
+		cr.Rectangle(r.left, r.top, r.width(), r.height())
+		cr.Fill()
+
+		result[i] = r
+	}
+
+	return result
 }

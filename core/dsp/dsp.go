@@ -128,7 +128,8 @@ func (d *DSP) doWork(work work) {
 		outputSamples[i] *= d.fftWindow[i]
 	}
 
-	fft := fft(outputSamples)
+	fft, mean := fft(outputSamples)
+	peaks, threshold := peaks(fft, mean)
 
 	center := d.fftRange.Center()
 	sideband := core.Frequency(d.sampleRate / (2 * d.decimation))
@@ -139,8 +140,11 @@ func (d *DSP) doWork(work work) {
 
 	select {
 	case d.fft <- core.FFT{
-		Data:  fft,
-		Range: core.FrequencyRange{From: center - sideband, To: center + sideband},
+		Data:          fft,
+		Range:         core.FrequencyRange{From: center - sideband, To: center + sideband},
+		Mean:          mean,
+		PeakThreshold: threshold,
+		Peaks:         peaks,
 	}:
 	default:
 		log.Print("return FFT hangs")
@@ -285,10 +289,11 @@ func shiftAndDecimate(samples []complex128, shiftRate float64, decimation int, f
 	return outputSamples
 }
 
-func fft(samples []complex128) []float64 {
+func fft(samples []complex128) ([]float64, float64) {
 	cfft := dsp.FFT(samples)
 
 	result := make([]float64, len(cfft))
+	mean := 0.0
 	blockSize := len(result)
 	blockCenter := blockSize / 2
 	for i, v := range cfft {
@@ -300,12 +305,57 @@ func fft(samples []complex128) []float64 {
 		}
 
 		result[resultIndex] = fftValueToDB(v, blockSize)
+		mean += result[resultIndex]
 	}
-	return result
+	mean /= float64(blockSize)
+	return result, mean
 }
 
 func fftValueToDB(fftValue complex128, blockSize int) float64 {
 	return 20.0 * math.Log10(2*math.Sqrt(math.Pow(real(fftValue), 2)+math.Pow(imag(fftValue), 2))/float64(blockSize))
+}
+
+func peaks(fft []float64, mean float64) ([]int, float64) {
+	if len(fft) == 0 {
+		return []int{}, 0
+	}
+
+	sum := 0.0
+	for _, p := range fft {
+		sum += math.Pow(p-mean, 2)
+	}
+	σ := math.Sqrt(sum / float64(len(fft)))
+
+	threshold := mean + 2*σ
+	above := false
+	max := -200.0
+	maxI := 0
+	lastPeak := -200.0
+	lastPeakI := 0
+
+	result := make([]int, 0)
+	for i, p := range fft {
+		if above && p > threshold && p > max {
+			max = p
+			maxI = i
+		} else if above && p < threshold {
+			above = false
+			if (maxI - lastPeakI) < 10 { // the 10 is arbitrary, may this should be configurable
+				if lastPeak < max && len(result) > 0 {
+					result[len(result)-1] = maxI
+				}
+			} else {
+				result = append(result, maxI)
+			}
+			lastPeak = max
+			lastPeakI = maxI
+		} else if !above && p > threshold {
+			above = true
+			max = p
+			maxI = i
+		}
+	}
+	return result, threshold
 }
 
 func toRate(frequency float64, sampleRate int) float64 {

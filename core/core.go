@@ -132,6 +132,8 @@ type Panorama struct {
 	FrequencyScale []FrequencyMark
 	DBScale        []DBMark
 	Spectrum       []PxPoint
+	MeanLine       Px
+	Peaks          []Px
 }
 
 // ToPx converts the given frequency in Hz to Px within the panorama.
@@ -153,6 +155,9 @@ type VFO struct {
 
 // FFT data and the corresponding frequency range
 type FFT struct {
-	Data  []float64
-	Range FrequencyRange
+	Data          []float64
+	Range         FrequencyRange
+	Mean          float64
+	PeakThreshold float64
+	Peaks         []int
 }
