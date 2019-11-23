@@ -5,8 +5,8 @@ github.com/davecgh/go-spew v1.1.1/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSs
 github.com/ftl/hamradio v0.0.0-20190616142531-0ed92a2499b1 h1:VUw46bPoQucAEtYw/ffSmJtKIXAxWitRsoycgVzMBrI=
 github.com/ftl/hamradio v0.0.0-20190616142531-0ed92a2499b1/go.mod h1:0I41yXzVCxvz1tuBJB/5C8l/IBVuRkcNjSIBlPhWWDU=
 github.com/ftl/localcopy v0.0.0-20180426154617-736abab34fe4/go.mod h1:PgbDWWUEMWPttzMHQUZs07vDKKzBBJHGdnh765EY8eg=
-github.com/ftl/rigproxy v0.0.0-20190807211049-05b9fc829f97 h1:Nz8eOx66OOK/6G5ojgxLgs5D/H3RqXWwrYqnMG7a/zo=
-github.com/ftl/rigproxy v0.0.0-20190807211049-05b9fc829f97/go.mod h1:A9tLEPmLdxfgemGReYnB2wLrbjxJWagzzkEpKwUW3S4=
+github.com/ftl/rigproxy v0.0.0-20191122163458-20e487296120 h1:VNvKFj71iG3wmPeye1WunR5urWeK8mpFLjDIXVyKH9k=
+github.com/ftl/rigproxy v0.0.0-20191122163458-20e487296120/go.mod h1:A9tLEPmLdxfgemGReYnB2wLrbjxJWagzzkEpKwUW3S4=
 github.com/gotk3/gotk3 v0.0.0-20190930052053-f6994e9a1558 h1:2u8Q078ei+2Uy9F8X3QH3BorSm1OhToj17PvggETsV8=
 github.com/gotk3/gotk3 v0.0.0-20190930052053-f6994e9a1558/go.mod h1:Eew3QBwAOBTrfFFDmsDE5wZWbcagBL1NUslj1GhRveo=
 github.com/jpoirier/gortlsdr v2.10.0+incompatible h1:y76oRd3I2+hqcFY2uxbKIRsHzVjJm2s06FnB0SHr96M=
