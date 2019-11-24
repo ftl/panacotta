@@ -270,12 +270,12 @@ func drawVFO(cr *cairo.Context, g geometry, data core.Panorama) rect {
 		bottom: g.fft.bottom,
 	}
 
-	cr.SetFontSize(20.0)
+	cr.SetFontSize(15.0)
+	freqText := fmt.Sprintf("%s:%.2fkHz", data.VFO.Name, data.VFO.Frequency/1000)
+	freqExtents := cr.TextExtents(freqText)
 
 	freqX := g.fft.left + float64(data.ToPx(data.VFO.Frequency))
-	vfoExtents := cr.TextExtents("VFO")
-	freqText := fmt.Sprintf("%.2fkHz", data.VFO.Frequency/1000)
-	freqExtents := cr.TextExtents(freqText)
+
 	padding := 4.0
 	filterX := g.fft.left + float64(data.VFOFilterFrom)
 	filterWidth := float64(data.VFOFilterTo - data.VFOFilterFrom)
@@ -298,17 +298,10 @@ func drawVFO(cr *cairo.Context, g geometry, data core.Panorama) rect {
 	cr.LineTo(freqX, r.bottom)
 	cr.Stroke()
 
-	cr.SetSourceRGB(0.6, 0.9, 1.0)
 	if leftSide {
-		cr.MoveTo(freqX+padding, r.top+vfoExtents.Height+padding)
+		cr.MoveTo(freqX+padding, r.top+freqExtents.Height+padding)
 	} else {
-		cr.MoveTo(freqX-padding-vfoExtents.Width, r.top+vfoExtents.Height+padding)
-	}
-	cr.ShowText("VFO")
-	if leftSide {
-		cr.MoveTo(freqX+padding, r.top+vfoExtents.Height+freqExtents.Height+2*padding)
-	} else {
-		cr.MoveTo(freqX-padding-freqExtents.Width, r.top+vfoExtents.Height+freqExtents.Height+2*padding)
+		cr.MoveTo(freqX-padding-freqExtents.Width, r.top+freqExtents.Height+padding)
 	}
 	cr.ShowText(freqText)
 
@@ -319,26 +312,32 @@ func drawPeaks(cr *cairo.Context, g geometry, data core.Panorama) []rect {
 	cr.Save()
 	defer cr.Restore()
 
-	filterWidth := float64(data.VFOFilterTo - data.VFOFilterFrom)
+	sensitiveWidth := float64(data.VFOFilterTo - data.VFOFilterFrom)
 
 	result := make([]rect, len(data.Peaks))
 	for i, peak := range data.Peaks {
 		x := g.fft.left + float64(peak)
 		r := rect{
-			left:   x - filterWidth/2,
+			left:   x - sensitiveWidth/2,
 			top:    g.fft.top,
-			right:  x + filterWidth/2,
+			right:  x + sensitiveWidth/2,
 			bottom: g.fft.bottom,
 		}
 		mouseOver := r.contains(g.mouse)
 
 		if mouseOver {
-			cr.SetSourceRGBA(0.8, 0.8, 0.8, 0.5)
+			cr.SetSourceRGBA(0.8, 1, 0.8, 0.5)
+			cr.Rectangle(r.left, r.top, r.width(), r.height())
+			cr.Fill()
+			cr.SetSourceRGB(0.8, 1, 0.8)
 		} else {
-			cr.SetSourceRGBA(0.8, 0.8, 0.8, 0.2)
+			cr.SetSourceRGBA(0.8, 1, 0.8, 0.5)
 		}
-		cr.Rectangle(r.left, r.top, r.width(), r.height())
-		cr.Fill()
+
+		cr.SetLineWidth(1.5)
+		cr.MoveTo(x, r.top)
+		cr.LineTo(x, r.bottom)
+		cr.Stroke()
 
 		result[i] = r
 	}

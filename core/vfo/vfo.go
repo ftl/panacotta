@@ -6,6 +6,7 @@ import (
 	"log"
 	"net"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -15,7 +16,7 @@ import (
 	"github.com/ftl/panacotta/core"
 )
 
-// Open a connection to a hamlib VFO at the given network address. If address is empty, localhost:4534 is used.
+// Open a connection to a hamlib VFO at the given network address. If address is empty, localhost:4532 is used.
 func Open(address string) (*VFO, error) {
 	if address == "" {
 		address = "localhost:4532"
@@ -41,16 +42,14 @@ func Open(address string) (*VFO, error) {
 
 // VFO type.
 type VFO struct {
-	address          string
-	trx              *protocol.Transceiver
-	trxTimeout       time.Duration
-	pollingInterval  time.Duration
-	tuneTo           chan core.Frequency
-	tuneBy           chan core.Frequency
-	currentFrequency core.Frequency
-	currentMode      string
-	currentBandwidth core.Frequency
-	stateLock        *sync.RWMutex
+	address         string
+	trx             *protocol.Transceiver
+	trxTimeout      time.Duration
+	pollingInterval time.Duration
+	tuneTo          chan core.Frequency
+	tuneBy          chan core.Frequency
+	state           core.VFO
+	stateLock       *sync.RWMutex
 
 	data chan core.VFO
 }
@@ -64,10 +63,7 @@ func (v *VFO) Run(stop chan struct{}) {
 			var err error
 			select {
 			case <-time.After(v.pollingInterval):
-				err = v.pollFrequency()
-				if err == nil {
-					err = v.pollMode()
-				}
+				err = v.pollState()
 
 			case f := <-v.tuneTo:
 				err = v.sendFrequency(f)
@@ -110,15 +106,35 @@ func (v *VFO) shutdown() {
 	log.Print("VFO shutdown")
 }
 
-func (v *VFO) pollFrequency() error {
+func (v *VFO) pollState() error {
+	commands := []string{"v", "f", "m"}
+	handlers := []func(protocol.Response) error{
+		v.handleNameResponse,
+		v.handleFrequencyResponse,
+		v.handleModeResponse,
+	}
+	for i, command := range commands {
+		err := v.poll(handlers[i], command)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (v *VFO) poll(handleResponse func(protocol.Response) error, shortCommand string, args ...string) error {
 	ctx, _ := context.WithTimeout(context.Background(), v.trxTimeout)
-	request := protocol.Request{Command: protocol.ShortCommand("f")}
+	request := protocol.Request{Command: protocol.ShortCommand(shortCommand), Args: args}
 	response, err := v.trx.Send(ctx, request)
 	if err != nil {
-		log.Print("polling frequency failed: ", err)
+		log.Printf("polling %s failed: %v", shortCommand, err)
 		return err
 	}
 
+	return handleResponse(response)
+}
+
+func (v *VFO) handleFrequencyResponse(response protocol.Response) error {
 	if len(response.Data) < 1 {
 		log.Printf("empty response %v", response)
 		return errors.New("empty response")
@@ -130,32 +146,18 @@ func (v *VFO) pollFrequency() error {
 		return err
 	}
 
-	if v.updateCurrentFrequency(f) {
-		v.data <- core.VFO{Frequency: f, Mode: v.currentMode, FilterWidth: v.currentBandwidth}
-	}
+	v.updateState(setFrequency(f))
+
 	return nil
 }
 
-func (v *VFO) updateCurrentFrequency(f core.Frequency) bool {
-	v.stateLock.Lock()
-	defer v.stateLock.Unlock()
-	if int(f) == int(v.currentFrequency) {
-		return false
+func setFrequency(f core.Frequency) func(*core.VFO) {
+	return func(state *core.VFO) {
+		state.Frequency = f
 	}
-
-	v.currentFrequency = f
-	return true
 }
 
-func (v *VFO) pollMode() error {
-	ctx, _ := context.WithTimeout(context.Background(), v.trxTimeout)
-	request := protocol.Request{Command: protocol.ShortCommand("m")}
-	response, err := v.trx.Send(ctx, request)
-	if err != nil {
-		log.Print("polling mode failed: ", err)
-		return err
-	}
-
+func (v *VFO) handleModeResponse(response protocol.Response) error {
 	if len(response.Data) < 2 {
 		log.Printf("empty response %v", response)
 		return errors.New("empty response")
@@ -169,22 +171,50 @@ func (v *VFO) pollMode() error {
 		return err
 	}
 
-	if v.updateCurrentMode(mode, bandwidth) {
-		v.data <- core.VFO{Frequency: v.currentFrequency, Mode: mode, FilterWidth: bandwidth}
-	}
+	v.updateState(setMode(mode, bandwidth))
 	return nil
 }
 
-func (v *VFO) updateCurrentMode(mode string, bandwidth core.Frequency) bool {
-	v.stateLock.Lock()
-	defer v.stateLock.Unlock()
-	if mode == v.currentMode && int(bandwidth) == int(v.currentBandwidth) {
-		return false
+func setMode(mode string, bandwidth core.Frequency) func(*core.VFO) {
+	return func(state *core.VFO) {
+		state.Mode = mode
+		state.FilterWidth = bandwidth
+	}
+}
+
+func (v *VFO) handleNameResponse(response protocol.Response) error {
+	if len(response.Data) < 1 {
+		log.Printf("empty response %v", response)
+		return errors.New("empty response")
 	}
 
-	v.currentMode = mode
-	v.currentBandwidth = bandwidth
-	return true
+	name := response.Data[0]
+	if strings.HasPrefix(name, "VFO") && len(name) > 3 {
+		name = name[3:len(name)]
+	}
+	v.updateState(setName(name))
+
+	return nil
+}
+
+func setName(name string) func(*core.VFO) {
+	return func(state *core.VFO) {
+		state.Name = name
+	}
+}
+
+func (v *VFO) updateState(updater func(*core.VFO)) {
+	v.stateLock.Lock()
+	defer v.stateLock.Unlock()
+
+	oldState := v.state
+	newState := v.state
+	updater(&newState)
+
+	if oldState != newState {
+		v.state = newState
+		v.data <- newState
+	}
 }
 
 func (v *VFO) sendFrequency(f core.Frequency) error {
@@ -196,9 +226,7 @@ func (v *VFO) sendFrequency(f core.Frequency) error {
 		return err
 	}
 
-	if v.updateCurrentFrequency(f) {
-		v.data <- core.VFO{Frequency: f, Mode: v.currentMode, FilterWidth: v.currentBandwidth}
-	}
+	v.updateState(setFrequency(f))
 	return nil
 }
 
@@ -229,14 +257,14 @@ func (v *VFO) TuneBy(Δf core.Frequency) {
 func (v *VFO) CurrentFrequency() core.Frequency {
 	v.stateLock.RLock()
 	defer v.stateLock.RUnlock()
-	return v.currentFrequency
+	return v.state.Frequency
 }
 
 // CurrentMode returns the current mode and the current bandwidth of the VFO.
 func (v *VFO) CurrentMode() (string, core.Frequency) {
 	v.stateLock.RLock()
 	defer v.stateLock.RUnlock()
-	return v.currentMode, v.currentBandwidth
+	return v.state.Mode, v.state.FilterWidth
 }
 
 func fToHamlib(f core.Frequency) string {

@@ -148,6 +148,7 @@ func (p Panorama) ToHz(x Px) Frequency {
 
 // VFO current state
 type VFO struct {
+	Name        string
 	Frequency   Frequency
 	FilterWidth Frequency
 	Mode        string
