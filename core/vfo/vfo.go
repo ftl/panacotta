@@ -62,9 +62,6 @@ func (v *VFO) Run(stop chan struct{}) {
 		for {
 			var err error
 			select {
-			case <-time.After(v.pollingInterval):
-				err = v.pollState()
-
 			case f := <-v.tuneTo:
 				err = v.sendFrequency(f)
 
@@ -93,7 +90,11 @@ func (v *VFO) reconnect() error {
 		return errors.Wrap(err, "cannot open VFO connection")
 	}
 
-	v.trx = protocol.NewTransceiver(out)
+	v.trx = protocol.NewPollingTransceiver(out, v.pollingInterval, v.trxTimeout,
+		protocol.PollCommandFunc(v.handleNameResponse, "v"),
+		protocol.PollCommandFunc(v.handleFrequencyResponse, "f"),
+		protocol.PollCommandFunc(v.handleModeResponse, "m"),
+	)
 	v.trx.WhenDone(func() {
 		out.Close()
 	})
@@ -106,35 +107,7 @@ func (v *VFO) shutdown() {
 	log.Print("VFO shutdown")
 }
 
-func (v *VFO) pollState() error {
-	commands := []string{"v", "f", "m"}
-	handlers := []func(protocol.Response) error{
-		v.handleNameResponse,
-		v.handleFrequencyResponse,
-		v.handleModeResponse,
-	}
-	for i, command := range commands {
-		err := v.poll(handlers[i], command)
-		if err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-func (v *VFO) poll(handleResponse func(protocol.Response) error, shortCommand string, args ...string) error {
-	ctx, _ := context.WithTimeout(context.Background(), v.trxTimeout)
-	request := protocol.Request{Command: protocol.ShortCommand(shortCommand), Args: args}
-	response, err := v.trx.Send(ctx, request)
-	if err != nil {
-		log.Printf("polling %s failed: %v", shortCommand, err)
-		return err
-	}
-
-	return handleResponse(response)
-}
-
-func (v *VFO) handleFrequencyResponse(response protocol.Response) error {
+func (v *VFO) handleFrequencyResponse(_ protocol.Request, response protocol.Response) error {
 	if len(response.Data) < 1 {
 		log.Printf("empty response %v", response)
 		return errors.New("empty response")
@@ -157,7 +130,7 @@ func setFrequency(f core.Frequency) func(*core.VFO) {
 	}
 }
 
-func (v *VFO) handleModeResponse(response protocol.Response) error {
+func (v *VFO) handleModeResponse(_ protocol.Request, response protocol.Response) error {
 	if len(response.Data) < 2 {
 		log.Printf("empty response %v", response)
 		return errors.New("empty response")
@@ -182,7 +155,7 @@ func setMode(mode string, bandwidth core.Frequency) func(*core.VFO) {
 	}
 }
 
-func (v *VFO) handleNameResponse(response protocol.Response) error {
+func (v *VFO) handleNameResponse(_ protocol.Request, response protocol.Response) error {
 	if len(response.Data) < 1 {
 		log.Printf("empty response %v", response)
 		return errors.New("empty response")
