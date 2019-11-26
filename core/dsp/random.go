@@ -1,4 +1,4 @@
-package rx
+package dsp
 
 import (
 	"log"
