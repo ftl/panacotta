@@ -14,8 +14,13 @@ import (
 	"github.com/ftl/panacotta/core"
 )
 
+const smoothingLength = 10 // TODO make configurable
+type smoother interface {
+	Put([]float64) []float64
+}
+
 func New(sampleRate int, ifFrequency, rxOffset core.Frequency) *DSP {
-	result := DSP{
+	result := &DSP{
 		workInput: make(chan work, 1),
 		fft:       make(chan core.FFT, 1),
 
@@ -23,9 +28,10 @@ func New(sampleRate int, ifFrequency, rxOffset core.Frequency) *DSP {
 		ifCenter:    ifFrequency,
 		rxCenter:    ifFrequency + rxOffset,
 		filterCoeff: firLowpass(27, 1.0/4.8),
+		smoother:    newAverager(smoothingLength, 0),
 	}
 
-	return &result
+	return result
 }
 
 func NewFullRange(sampleRate int, ifFrequency, rxOffset core.Frequency) *DSP {
@@ -51,6 +57,8 @@ type DSP struct {
 	decimation      int
 	filterCoeff     []complex128
 	fullRangeMode   bool
+
+	smoother smoother
 }
 
 type work struct {
@@ -97,19 +105,33 @@ func (d *DSP) doWork(work work) {
 		return
 	}
 
-	needReconfiguration := work.fftRange != d.fftRange || work.vfo != d.vfo || len(work.samples) != d.inputBlockSize
-	if needReconfiguration {
-		d.fftRange = work.fftRange
-		d.vfo = work.vfo
+	oldOutputBlockSize := d.outputBlockSize
+	var needReconfiguration bool
+	if len(work.samples) != d.inputBlockSize || needReconfiguration {
 		d.inputBlockSize = len(work.samples)
+		needReconfiguration = true
+	}
+	if work.vfo.Frequency != d.vfo.Frequency || needReconfiguration {
+		d.vfo = work.vfo
+		needReconfiguration = true
+	}
+	if work.fftRange != d.fftRange || needReconfiguration {
+		d.fftRange = work.fftRange
 		d.Δf = -(float64(d.fftRange.Center() - d.vfo.Frequency + d.ifCenter - d.rxCenter))
 		d.outputBlockSize = findBlocksize(int(float64(d.inputBlockSize)/(float64(d.sampleRate)/(2*float64(d.fftRange.Width())))), d.inputBlockSize)
 		d.decimation = d.inputBlockSize / d.outputBlockSize
+		needReconfiguration = true
+	}
+	if oldOutputBlockSize != d.outputBlockSize {
+		d.smoother = newAverager(smoothingLength, d.outputBlockSize)
+
 		fftWindow := window.Hamming(d.outputBlockSize)
 		d.fftWindow = make([]complex128, len(fftWindow))
 		for i := range fftWindow {
 			d.fftWindow[i] = complex(fftWindow[i], 0)
 		}
+	}
+	if needReconfiguration {
 		log.Printf("fftRange %f %f %f (%f) | vfo %f | if %f | rx %f", d.fftRange.From, d.fftRange.Center(), d.fftRange.To, d.fftRange.Width(), d.vfo.Frequency, d.ifCenter, d.rxCenter)
 		log.Printf("reconfiguration: %d %d %f %f", d.decimation, d.outputBlockSize, d.fftRange.Width(), d.Δf)
 	}
@@ -129,6 +151,9 @@ func (d *DSP) doWork(work work) {
 	}
 
 	fft, mean := fft(outputSamples)
+	if smoothingLength > 1 {
+		fft = d.smoother.Put(fft)
+	}
 	peaks, threshold := peaks(fft, mean)
 
 	center := d.fftRange.Center()
@@ -315,9 +340,9 @@ func fftValueToDB(fftValue complex128, blockSize int) float64 {
 	return 20.0 * math.Log10(2*math.Sqrt(math.Pow(real(fftValue), 2)+math.Pow(imag(fftValue), 2))/float64(blockSize))
 }
 
-func peaks(fft []float64, mean float64) ([]int, float64) {
+func peaks(fft []float64, mean float64) ([]core.PeakIndexRange, float64) {
 	if len(fft) == 0 {
-		return []int{}, 0
+		return []core.PeakIndexRange{}, 0
 	}
 
 	sum := 0.0
@@ -327,34 +352,37 @@ func peaks(fft []float64, mean float64) ([]int, float64) {
 	σ := math.Sqrt(sum / float64(len(fft)))
 
 	threshold := mean + 2*σ
-	above := false
+	startI := 0
 	max := -200.0
 	maxI := 0
-	lastPeak := -200.0
-	lastPeakI := 0
+	lastValue := -200.0
+	wasRising := false
+	wasAbove := false
 
-	result := make([]int, 0)
-	for i, p := range fft {
-		if above && p > threshold && p > max {
-			max = p
-			maxI = i
-		} else if above && p < threshold {
-			above = false
-			if (maxI - lastPeakI) < 10 { // the 10 is arbitrary, may this should be configurable
-				if lastPeak < max && len(result) > 0 {
-					result[len(result)-1] = maxI
-				}
-			} else {
-				result = append(result, maxI)
+	result := make([]core.PeakIndexRange, 0, len(fft)/4)
+	for i, v := range fft {
+		rising := v-lastValue >= 0
+		turn := rising != wasRising
+		above := v > threshold
+		if turn && !rising {
+			wasAbove = above
+			if max < lastValue {
+				max = lastValue
+				maxI = i - 1
 			}
-			lastPeak = max
-			lastPeakI = maxI
-		} else if !above && p > threshold {
-			above = true
-			max = p
+		} else if turn && rising {
+			if wasAbove {
+				result = append(result, core.PeakIndexRange{From: startI, To: i - 1, Max: maxI})
+			}
+			startI = i - 1
+			wasAbove = false
+			max = v
 			maxI = i
 		}
+		lastValue = v
+		wasRising = rising
 	}
+
 	return result, threshold
 }
 

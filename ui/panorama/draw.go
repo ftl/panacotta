@@ -57,8 +57,8 @@ func (v *View) onDraw(da *gtk.DrawingArea, cr *cairo.Context) {
 	g.frequencyScale = drawFrequencyScale(cr, g, data)
 	g.modeIndicator = drawModeIndicator(cr, g, data)
 	g.fft = drawFFT(cr, g, data)
-	g.vfo = drawVFO(cr, g, data)
 	g.peaks = drawPeaks(cr, g, data)
+	g.vfo = drawVFO(cr, g, data)
 
 	v.geometry = g
 }
@@ -312,31 +312,31 @@ func drawPeaks(cr *cairo.Context, g geometry, data core.Panorama) []rect {
 	cr.Save()
 	defer cr.Restore()
 
-	sensitiveWidth := float64(data.VFOFilterTo - data.VFOFilterFrom)
-
 	result := make([]rect, len(data.Peaks))
 	for i, peak := range data.Peaks {
-		x := g.fft.left + float64(peak)
+		fromX := g.fft.left + float64(peak.From)
+		toX := g.fft.left + float64(peak.To)
+		maxX := g.fft.left + float64(peak.Max)
 		r := rect{
-			left:   x - sensitiveWidth/2,
+			left:   fromX,
 			top:    g.fft.top,
-			right:  x + sensitiveWidth/2,
+			right:  toX,
 			bottom: g.fft.bottom,
 		}
 		mouseOver := r.contains(g.mouse)
 
 		if mouseOver {
-			cr.SetSourceRGBA(0.8, 1, 0.8, 0.5)
-			cr.Rectangle(r.left, r.top, r.width(), r.height())
-			cr.Fill()
-			cr.SetSourceRGB(0.8, 1, 0.8)
+			cr.SetSourceRGBA(0.3, 1, 0.8, 0.4)
 		} else {
-			cr.SetSourceRGBA(0.8, 1, 0.8, 0.5)
+			cr.SetSourceRGBA(0.3, 1, 0.8, 0.2)
 		}
+		cr.Rectangle(r.left, r.top, r.width(), r.height())
+		cr.Fill()
 
+		cr.SetSourceRGBA(0.8, 1, 0.8, 0.4)
 		cr.SetLineWidth(1.5)
-		cr.MoveTo(x, r.top)
-		cr.LineTo(x, r.bottom)
+		cr.MoveTo(maxX, r.top)
+		cr.LineTo(maxX, r.bottom)
 		cr.Stroke()
 
 		result[i] = r

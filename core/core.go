@@ -106,6 +106,11 @@ type DBMark struct {
 	Y  Px
 }
 
+// PeakMark contains all information to visualize a peak
+type PeakMark struct {
+	From, Max, To Px
+}
+
 // HzPerPx unit for resolution
 type HzPerPx float64
 
@@ -133,7 +138,7 @@ type Panorama struct {
 	DBScale        []DBMark
 	Spectrum       []PxPoint
 	MeanLine       Px
-	Peaks          []Px
+	Peaks          []PeakMark
 }
 
 // ToPx converts the given frequency in Hz to Px within the panorama.
@@ -160,5 +165,9 @@ type FFT struct {
 	Range         FrequencyRange
 	Mean          float64
 	PeakThreshold float64
-	Peaks         []int
+	Peaks         []PeakIndexRange
+}
+
+type PeakIndexRange struct {
+	From, Max, To int
 }

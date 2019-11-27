@@ -25,7 +25,7 @@ func (p Panorama) fullRangeData() core.Panorama {
 		DBScale:        p.dbScale(),
 		Spectrum:       p.fullRangeSpectrum(),
 		MeanLine:       0.0,
-		Peaks:          []core.Px{},
+		Peaks:          []core.PeakMark{},
 	}
 
 	result.VFOFilterFrom = result.VFOLine - resolution.ToPx(p.vfo.FilterWidth/2)

@@ -28,15 +28,16 @@ type Panorama struct {
 }
 
 type peak struct {
-	frequency core.Frequency
-	lastSeen  time.Time
-	count     int
+	frequencyRange core.FrequencyRange
+	maxFrequency   core.Frequency
+	lastSeen       time.Time
+	count          int
 }
 
 type peakKey uint
 
 func toPeakKey(f core.Frequency) peakKey {
-	return peakKey(f / 10.0)
+	return peakKey(f / 250.0)
 }
 
 // ViewMode of the panorama.
@@ -50,7 +51,7 @@ const (
 
 const (
 	defaultFixedResolution    = core.HzPerPx(100)
-	defaultCenteredResolution = core.HzPerPx(10)
+	defaultCenteredResolution = core.HzPerPx(25)
 )
 
 // New returns a new instance of panorama.
@@ -66,7 +67,7 @@ func New(width core.Px, frequencyRange core.FrequencyRange, vfoFrequency core.Fr
 		viewMode:    ViewFixed,
 		margin:      0.02,
 		peakBuffer:  make(map[peakKey]peak),
-		peakTimeout: 2 * time.Second, // TODO make this configurable
+		peakTimeout: 5 * time.Second, // TODO make this configurable
 	}
 
 	result.vfo.Frequency = vfoFrequency
@@ -321,9 +322,9 @@ func (p Panorama) dbScale() []core.DBMark {
 	return dbScale
 }
 
-func (p Panorama) spectrumAndMeanAndPeaks() ([]core.PxPoint, core.Px, []core.Px) {
+func (p Panorama) spectrumAndMeanAndPeaks() ([]core.PxPoint, core.Px, []core.PeakMark) {
 	if len(p.fft.Data) == 0 || p.fft.Range.To < p.frequencyRange.From || p.fft.Range.From > p.frequencyRange.To {
-		return []core.PxPoint{}, 0, []core.Px{}
+		return []core.PxPoint{}, 0, []core.PeakMark{}
 	}
 
 	resolution := p.resolution[p.viewMode]
@@ -355,28 +356,40 @@ func (p Panorama) spectrumAndMeanAndPeaks() ([]core.PxPoint, core.Px, []core.Px)
 
 	meanLine := core.Px((core.DB(p.fft.PeakThreshold)-p.dbRange.From)/p.dbRange.Width()) * p.height
 
+	freq := func(i int) core.Frequency {
+		return p.fft.Range.From + core.Frequency(float64(i)*fftResolution)
+	}
+
 	now := time.Now()
-	for _, i := range p.fft.Peaks {
-		freq := p.fft.Range.From + core.Frequency(float64(i)*fftResolution)
-		key := toPeakKey(freq)
+	for _, peakIndexRange := range p.fft.Peaks {
+		peak := peak{
+			frequencyRange: core.FrequencyRange{From: freq(peakIndexRange.From), To: freq(peakIndexRange.To)},
+			maxFrequency:   freq(peakIndexRange.Max), // TODO extrapolate the real peak frequency
+			lastSeen:       now,
+		}
+		key := toPeakKey(peak.maxFrequency)
 		value, ok := p.peakBuffer[key]
 		if ok {
-			value.lastSeen = now
-			value.count++
-			p.peakBuffer[key] = value
+			peak.count = value.count + 1
+			p.peakBuffer[key] = peak
 		} else {
-			p.peakBuffer[key] = peak{
-				frequency: p.fft.Range.From + core.Frequency(float64(i)*fftResolution),
-				lastSeen:  now,
-			}
+			p.peakBuffer[key] = peak
 		}
 	}
 
-	peaks := make([]core.Px, 0, len(p.fft.Peaks))
+	peaks := make([]core.PeakMark, 0, len(p.fft.Peaks))
 	for key, peak := range p.peakBuffer {
-		if now.Sub(peak.lastSeen) < p.peakTimeout && peak.count > 2 && p.frequencyRange.Contains(peak.frequency) {
-			peaks = append(peaks, resolution.ToPx(peak.frequency-p.frequencyRange.From))
-		} else if now.Sub(peak.lastSeen) >= p.peakTimeout {
+		age := now.Sub(peak.lastSeen)
+		if now.Sub(peak.lastSeen) < p.peakTimeout && p.frequencyRange.Contains(peak.maxFrequency) && peak.count > 2 {
+			peaks = append(peaks, core.PeakMark{
+				From: resolution.ToPx(peak.frequencyRange.From - p.frequencyRange.From),
+				To:   resolution.ToPx(peak.frequencyRange.To - p.frequencyRange.From),
+				Max:  resolution.ToPx(peak.maxFrequency - p.frequencyRange.From),
+			})
+		} else if age > 0 && peak.count > 0 {
+			peak.count--
+			p.peakBuffer[key] = peak
+		} else if age >= p.peakTimeout || !p.frequencyRange.Contains(peak.maxFrequency) {
 			delete(p.peakBuffer, key)
 		}
 	}
