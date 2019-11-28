@@ -30,6 +30,7 @@ type Panorama struct {
 type peak struct {
 	frequencyRange core.FrequencyRange
 	maxFrequency   core.Frequency
+	value          core.Px
 	lastSeen       time.Time
 	count          int
 }
@@ -371,6 +372,7 @@ func (p Panorama) spectrumAndMeanAndPeaks() ([]core.PxPoint, core.Px, []core.Pea
 		peak := peak{
 			frequencyRange: core.FrequencyRange{From: freq(peakIndexRange.From), To: freq(peakIndexRange.To)},
 			maxFrequency:   freq(peakIndexRange.Max) + correction(peakIndexRange.Max),
+			value:          core.Px((core.DB(peakIndexRange.Value)-p.dbRange.From)/p.dbRange.Width()) * p.height,
 			lastSeen:       now,
 		}
 		key := toPeakKey(peak.maxFrequency)
@@ -401,9 +403,10 @@ func (p Panorama) spectrumAndMeanAndPeaks() ([]core.PxPoint, core.Px, []core.Pea
 		age := now.Sub(peak.lastSeen)
 		if now.Sub(peak.lastSeen) < p.peakTimeout && p.frequencyRange.Contains(peak.maxFrequency) /*&& peak.count > 2*/ {
 			peaks = append(peaks, core.PeakMark{
-				From: resolution.ToPx(peak.frequencyRange.From - p.frequencyRange.From),
-				To:   resolution.ToPx(peak.frequencyRange.To - p.frequencyRange.From),
-				Max:  resolution.ToPx(peak.maxFrequency - p.frequencyRange.From),
+				From:  resolution.ToPx(peak.frequencyRange.From - p.frequencyRange.From),
+				To:    resolution.ToPx(peak.frequencyRange.To - p.frequencyRange.From),
+				Max:   resolution.ToPx(peak.maxFrequency - p.frequencyRange.From),
+				Value: peak.value,
 			})
 		} else if age > 0 && peak.count > 0 {
 			peak.count--

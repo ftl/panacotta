@@ -108,7 +108,10 @@ type DBMark struct {
 
 // PeakMark contains all information to visualize a peak
 type PeakMark struct {
-	From, Max, To Px
+	From  Px
+	To    Px
+	Max   Px
+	Value Px
 }
 
 // HzPerPx unit for resolution
@@ -169,5 +172,8 @@ type FFT struct {
 }
 
 type PeakIndexRange struct {
-	From, Max, To int
+	From  int
+	To    int
+	Max   int
+	Value float64
 }

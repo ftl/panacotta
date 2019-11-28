@@ -317,6 +317,7 @@ func drawPeaks(cr *cairo.Context, g geometry, data core.Panorama) []rect {
 		fromX := g.fft.left + float64(peak.From)
 		toX := g.fft.left + float64(peak.To)
 		maxX := g.fft.left + float64(peak.Max)
+		y := g.fft.bottom - float64(peak.Value)
 		r := rect{
 			left:   fromX,
 			top:    g.fft.top,
@@ -327,17 +328,24 @@ func drawPeaks(cr *cairo.Context, g geometry, data core.Panorama) []rect {
 
 		if mouseOver {
 			cr.SetSourceRGBA(0.3, 1, 0.8, 0.4)
+			cr.Rectangle(r.left, r.top, r.width(), r.height())
+			cr.Fill()
 		} else {
 			cr.SetSourceRGBA(0.3, 1, 0.8, 0.2)
 		}
-		cr.Rectangle(r.left, r.top, r.width(), r.height())
-		cr.Fill()
 
-		cr.SetSourceRGBA(0.8, 1, 0.8, 0.4)
+		cr.SetSourceRGBA(0.3, 1, 0.8, 0.4)
 		cr.SetLineWidth(1.5)
-		cr.MoveTo(maxX, r.top)
+		cr.MoveTo(maxX, y) // r.top
 		cr.LineTo(maxX, r.bottom)
 		cr.Stroke()
+
+		cr.SetSourceRGB(0.3, 1, 0.8)
+		cr.SetFontSize(12.0)
+		markText := "\u25BC"
+		markExtents := cr.TextExtents(markText)
+		cr.MoveTo(maxX-markExtents.Width/2, y)
+		cr.ShowText(markText)
 
 		result[i] = r
 	}
