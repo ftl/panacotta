@@ -375,7 +375,7 @@ func peaks(fft []float64, mean float64) ([]core.PeakIndexRange, float64) {
 		} else if turn && rising {
 			if wasAbove {
 				peak := core.PeakIndexRange{From: startI, To: i - 1, Max: maxI}
-				isClose := (maxI - lastMaxI) < 10 // this threshold value is arbitrary, it should be configurable
+				isClose := (maxI - lastMaxI) < 5 // this threshold value is arbitrary, it should be configurable
 				if isClose && max > lastMax && len(result) > 0 {
 					result[len(result)-1] = peak
 				} else if isClose && max < lastMax {

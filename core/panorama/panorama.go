@@ -37,7 +37,7 @@ type peak struct {
 type peakKey uint
 
 func toPeakKey(f core.Frequency) peakKey {
-	return peakKey(f / 10.0)
+	return peakKey(f / 100.0)
 }
 
 // ViewMode of the panorama.
@@ -374,6 +374,19 @@ func (p Panorama) spectrumAndMeanAndPeaks() ([]core.PxPoint, core.Px, []core.Pea
 			lastSeen:       now,
 		}
 		key := toPeakKey(peak.maxFrequency)
+
+		closePeakThreshold := core.Frequency(200) // this value is arbitrary, it should be configurable
+		w := int(toPeakKey(closePeakThreshold))
+		for i := 1; i <= w; i++ {
+			minusI := key - peakKey(i)
+			if value, ok := p.peakBuffer[minusI]; ok && (peak.maxFrequency-value.maxFrequency) < closePeakThreshold {
+				delete(p.peakBuffer, minusI)
+			}
+			plusI := key + peakKey(i)
+			if value, ok := p.peakBuffer[plusI]; ok && (value.maxFrequency-peak.maxFrequency) < closePeakThreshold {
+				delete(p.peakBuffer, plusI)
+			}
+		}
 		value, ok := p.peakBuffer[key]
 		if ok {
 			peak.count = value.count + 1
@@ -386,7 +399,7 @@ func (p Panorama) spectrumAndMeanAndPeaks() ([]core.PxPoint, core.Px, []core.Pea
 	peaks := make([]core.PeakMark, 0, len(p.fft.Peaks))
 	for key, peak := range p.peakBuffer {
 		age := now.Sub(peak.lastSeen)
-		if now.Sub(peak.lastSeen) < p.peakTimeout && p.frequencyRange.Contains(peak.maxFrequency) && peak.count > 2 {
+		if now.Sub(peak.lastSeen) < p.peakTimeout && p.frequencyRange.Contains(peak.maxFrequency) /*&& peak.count > 2*/ {
 			peaks = append(peaks, core.PeakMark{
 				From: resolution.ToPx(peak.frequencyRange.From - p.frequencyRange.From),
 				To:   resolution.ToPx(peak.frequencyRange.To - p.frequencyRange.From),
