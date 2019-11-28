@@ -37,7 +37,7 @@ type peak struct {
 type peakKey uint
 
 func toPeakKey(f core.Frequency) peakKey {
-	return peakKey(f / 250.0)
+	return peakKey(f / 10.0)
 }
 
 // ViewMode of the panorama.
@@ -359,12 +359,18 @@ func (p Panorama) spectrumAndMeanAndPeaks() ([]core.PxPoint, core.Px, []core.Pea
 	freq := func(i int) core.Frequency {
 		return p.fft.Range.From + core.Frequency(float64(i)*fftResolution)
 	}
+	correction := func(i int) core.Frequency {
+		if i <= 0 || i >= len(p.fft.Data)-1 {
+			return 0
+		}
+		return core.Frequency((p.fft.Data[i+1] - p.fft.Data[i-1]) / (4*p.fft.Data[i] - 2*p.fft.Data[i-1] - 2*p.fft.Data[i+1]))
+	}
 
 	now := time.Now()
 	for _, peakIndexRange := range p.fft.Peaks {
 		peak := peak{
 			frequencyRange: core.FrequencyRange{From: freq(peakIndexRange.From), To: freq(peakIndexRange.To)},
-			maxFrequency:   freq(peakIndexRange.Max), // TODO extrapolate the real peak frequency
+			maxFrequency:   freq(peakIndexRange.Max) + correction(peakIndexRange.Max),
 			lastSeen:       now,
 		}
 		key := toPeakKey(peak.maxFrequency)
