@@ -32,7 +32,7 @@ func (c *Controller) Startup() {
 	// configuration
 	ifCenter := 67899000  // this is fix for the FT-450D and specific to our method
 	sampleRate := 1800000 // 2097152 // 1800000 // this is specific to our method
-	blockSize := 32768    // 131072    // this is the number of *complex* samples in one block
+	blockSize := 65536    // 32768    // 131072    // this is the number of *complex* samples in one block
 	c.fullRangeMode = false
 
 	rxCenter := ifCenter - (sampleRate / 4)
