@@ -179,6 +179,7 @@ type Panorama struct {
 	VFOLine        Px
 	VFOFilterFrom  Px
 	VFOFilterTo    Px
+	VFOSignalLevel DB
 	FrequencyScale []FrequencyMark
 	DBScale        []DBMark
 	Spectrum       []PxPoint
@@ -202,7 +203,6 @@ type VFO struct {
 	Frequency   Frequency
 	FilterWidth Frequency
 	Mode        string
-	SignalLevel DB
 }
 
 // FFT data and the corresponding frequency range

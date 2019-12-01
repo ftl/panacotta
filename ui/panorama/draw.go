@@ -270,18 +270,12 @@ func drawVFO(cr *cairo.Context, g geometry, data core.Panorama) rect {
 		bottom: g.fft.bottom,
 	}
 
-	cr.SetFontSize(15.0)
-	freqText := fmt.Sprintf("%s:%.2fkHz", data.VFO.Name, data.VFO.Frequency/1000)
-	freqExtents := cr.TextExtents(freqText)
-
 	freqX := g.fft.left + float64(data.ToPx(data.VFO.Frequency))
-
 	padding := 4.0
 	filterX := g.fft.left + float64(data.VFOFilterFrom)
 	filterWidth := float64(data.VFOFilterTo - data.VFOFilterFrom)
 	r.left = filterX
 	r.right = filterX + filterWidth
-	leftSide := freqX+padding+freqExtents.Width < g.fft.right
 	mouseOver := r.contains(g.mouse)
 
 	if mouseOver {
@@ -298,12 +292,26 @@ func drawVFO(cr *cairo.Context, g geometry, data core.Panorama) rect {
 	cr.LineTo(freqX, r.bottom)
 	cr.Stroke()
 
+	cr.SetFontSize(15.0)
+	freqText := fmt.Sprintf("%s:%.2fkHz", data.VFO.Name, data.VFO.Frequency/1000)
+	freqExtents := cr.TextExtents(freqText)
+	leftSide := freqX+padding+freqExtents.Width < g.fft.right
 	if leftSide {
 		cr.MoveTo(freqX+padding, r.top+freqExtents.Height+padding)
 	} else {
 		cr.MoveTo(freqX-padding-freqExtents.Width, r.top+freqExtents.Height+padding)
 	}
 	cr.ShowText(freqText)
+
+	cr.SetFontSize(10.0)
+	sMeterText := core.SUnit(data.VFOSignalLevel).String()
+	sMeterExtents := cr.TextExtents(sMeterText)
+	if leftSide {
+		cr.MoveTo(freqX+padding, r.top+freqExtents.Height+sMeterExtents.Height+2*padding)
+	} else {
+		cr.MoveTo(freqX-padding-sMeterExtents.Width, r.top+freqExtents.Height+sMeterExtents.Height+2*padding)
+	}
+	cr.ShowText(sMeterText)
 
 	return r
 }
@@ -331,8 +339,10 @@ func drawPeaks(cr *cairo.Context, g geometry, data core.Panorama) []rect {
 		cr.SetFontSize(10.0)
 		freqText := fmt.Sprintf("%.2fkHz", peak.MaxFrequency/1000)
 		freqExtents := cr.TextExtents(freqText)
-		freqX := g.fft.left + float64(data.ToPx(peak.MaxFrequency))
-		leftSide := freqX+padding+freqExtents.Width < g.fft.right
+		leftSide := maxX+padding+freqExtents.Width < g.fft.right
+
+		sMeterText := core.SUnit(peak.ValueDB).String()
+		sMeterExtents := cr.TextExtents(sMeterText)
 
 		if mouseOver {
 			cr.SetSourceRGBA(0.3, 1, 0.8, 0.4)
@@ -341,11 +351,17 @@ func drawPeaks(cr *cairo.Context, g geometry, data core.Panorama) []rect {
 
 			cr.SetSourceRGB(0.3, 1, 0.8)
 			if leftSide {
-				cr.MoveTo(freqX+padding, y+padding)
+				cr.MoveTo(maxX+padding, y+padding)
 			} else {
-				cr.MoveTo(freqX-padding-freqExtents.Width, y+padding)
+				cr.MoveTo(maxX-padding-freqExtents.Width, y+padding)
 			}
 			cr.ShowText(freqText)
+			if leftSide {
+				cr.MoveTo(maxX+padding, y+freqExtents.Height+2*padding)
+			} else {
+				cr.MoveTo(maxX-padding-sMeterExtents.Width, y+freqExtents.Height+2*padding)
+			}
+			cr.ShowText(sMeterText)
 		} else {
 			cr.SetSourceRGBA(0.3, 1, 0.8, 0.2)
 		}

@@ -249,7 +249,7 @@ func (p Panorama) Data() core.Panorama {
 
 func (p Panorama) data() core.Panorama {
 	resolution := p.resolution[p.viewMode]
-	spectrum, meanLine, peaks := p.spectrumAndMeanAndPeaks()
+	spectrum, meanLine, peaks, signalLevel := p.spectrumAndMeanAndPeaksAndSignalLevel()
 	result := core.Panorama{
 		FrequencyRange: p.frequencyRange,
 		VFO:            p.vfo,
@@ -265,6 +265,7 @@ func (p Panorama) data() core.Panorama {
 		Peaks:          peaks,
 	}
 
+	result.VFOSignalLevel = signalLevel
 	result.VFOFilterFrom = result.VFOLine - resolution.ToPx(p.vfo.FilterWidth/2)
 	result.VFOFilterTo = result.VFOLine + resolution.ToPx(p.vfo.FilterWidth/2)
 
@@ -324,9 +325,9 @@ func (p Panorama) dbScale() []core.DBMark {
 	return dbScale
 }
 
-func (p Panorama) spectrumAndMeanAndPeaks() ([]core.PxPoint, core.Px, []core.PeakMark) {
+func (p Panorama) spectrumAndMeanAndPeaksAndSignalLevel() ([]core.PxPoint, core.Px, []core.PeakMark, core.DB) {
 	if len(p.fft.Data) == 0 || p.fft.Range.To < p.frequencyRange.From || p.fft.Range.From > p.frequencyRange.To {
-		return []core.PxPoint{}, 0, []core.PeakMark{}
+		return []core.PxPoint{}, 0, []core.PeakMark{}, 0
 	}
 
 	resolution := p.resolution[p.viewMode]
@@ -338,6 +339,12 @@ func (p Panorama) spectrumAndMeanAndPeaks() ([]core.PxPoint, core.Px, []core.Pea
 	if (end-start+1)%step != 0 {
 		resultLength++
 	}
+	freq := func(i int) core.Frequency {
+		return p.fft.Range.From + core.Frequency(float64(i)*fftResolution)
+	}
+	freqIndex := func(f core.Frequency) int {
+		return int(float64(f-p.fft.Range.From) / fftResolution)
+	}
 
 	result := make([]core.PxPoint, resultLength)
 	resultIndex := 0
@@ -348,9 +355,8 @@ func (p Panorama) spectrumAndMeanAndPeaks() ([]core.PxPoint, core.Px, []core.Pea
 		}
 		d /= float64(step)
 
-		freq := p.fft.Range.From + core.Frequency(float64(i)*fftResolution)
 		result[resultIndex] = core.PxPoint{
-			X: resolution.ToPx(freq - p.frequencyRange.From),
+			X: resolution.ToPx(freq(i) - p.frequencyRange.From),
 			Y: core.Px((core.DB(d)-p.dbRange.From)/p.dbRange.Width()) * p.height,
 		}
 		resultIndex++
@@ -358,9 +364,6 @@ func (p Panorama) spectrumAndMeanAndPeaks() ([]core.PxPoint, core.Px, []core.Pea
 
 	meanLine := core.Px((core.DB(p.fft.PeakThreshold)-p.dbRange.From)/p.dbRange.Width()) * p.height
 
-	freq := func(i int) core.Frequency {
-		return p.fft.Range.From + core.Frequency(float64(i)*fftResolution)
-	}
 	correction := func(i int) core.Frequency {
 		if i <= 0 || i >= len(p.fft.Data)-1 {
 			return 0
@@ -420,5 +423,7 @@ func (p Panorama) spectrumAndMeanAndPeaks() ([]core.PxPoint, core.Px, []core.Pea
 		}
 	}
 
-	return result, meanLine, peaks
+	signalLevel := core.DB(p.fft.Data[freqIndex(p.vfo.Frequency)])
+
+	return result, meanLine, peaks, signalLevel
 }
