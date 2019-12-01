@@ -30,7 +30,8 @@ type Panorama struct {
 type peak struct {
 	frequencyRange core.FrequencyRange
 	maxFrequency   core.Frequency
-	value          core.Px
+	valueY         core.Px
+	valueDB        core.DB
 	lastSeen       time.Time
 	count          int
 }
@@ -60,7 +61,7 @@ func New(width core.Px, frequencyRange core.FrequencyRange, vfoFrequency core.Fr
 	result := Panorama{
 		width:          width,
 		frequencyRange: frequencyRange,
-		dbRange:        core.DBRange{From: -125, To: 15},
+		dbRange:        core.DBRange{From: -115, To: -35},
 		resolution: map[ViewMode]core.HzPerPx{
 			ViewFixed:    calcResolution(frequencyRange, width),
 			ViewCentered: defaultCenteredResolution,
@@ -372,7 +373,8 @@ func (p Panorama) spectrumAndMeanAndPeaks() ([]core.PxPoint, core.Px, []core.Pea
 		peak := peak{
 			frequencyRange: core.FrequencyRange{From: freq(peakIndexRange.From), To: freq(peakIndexRange.To)},
 			maxFrequency:   freq(peakIndexRange.Max) + correction(peakIndexRange.Max),
-			value:          core.Px((core.DB(peakIndexRange.Value)-p.dbRange.From)/p.dbRange.Width()) * p.height,
+			valueY:         core.Px((core.DB(peakIndexRange.Value)-p.dbRange.From)/p.dbRange.Width()) * p.height,
+			valueDB:        core.DB(peakIndexRange.Value),
 			lastSeen:       now,
 		}
 		key := toPeakKey(peak.maxFrequency)
@@ -403,10 +405,12 @@ func (p Panorama) spectrumAndMeanAndPeaks() ([]core.PxPoint, core.Px, []core.Pea
 		age := now.Sub(peak.lastSeen)
 		if now.Sub(peak.lastSeen) < p.peakTimeout && p.frequencyRange.Contains(peak.maxFrequency) /*&& peak.count > 2*/ {
 			peaks = append(peaks, core.PeakMark{
-				From:  resolution.ToPx(peak.frequencyRange.From - p.frequencyRange.From),
-				To:    resolution.ToPx(peak.frequencyRange.To - p.frequencyRange.From),
-				Max:   resolution.ToPx(peak.maxFrequency - p.frequencyRange.From),
-				Value: peak.value,
+				FromX:        resolution.ToPx(peak.frequencyRange.From - p.frequencyRange.From),
+				ToX:          resolution.ToPx(peak.frequencyRange.To - p.frequencyRange.From),
+				MaxX:         resolution.ToPx(peak.maxFrequency - p.frequencyRange.From),
+				MaxFrequency: peak.maxFrequency,
+				ValueY:       peak.valueY,
+				ValueDB:      peak.valueDB,
 			})
 		} else if age > 0 && peak.count > 0 {
 			peak.count--

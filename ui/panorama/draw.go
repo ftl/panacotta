@@ -312,12 +312,14 @@ func drawPeaks(cr *cairo.Context, g geometry, data core.Panorama) []rect {
 	cr.Save()
 	defer cr.Restore()
 
+	padding := 4.0
+
 	result := make([]rect, len(data.Peaks))
 	for i, peak := range data.Peaks {
-		fromX := g.fft.left + float64(peak.From)
-		toX := g.fft.left + float64(peak.To)
-		maxX := g.fft.left + float64(peak.Max)
-		y := g.fft.bottom - float64(peak.Value)
+		fromX := g.fft.left + float64(peak.FromX)
+		toX := g.fft.left + float64(peak.ToX)
+		maxX := g.fft.left + float64(peak.MaxX)
+		y := g.fft.bottom - float64(peak.ValueY)
 		r := rect{
 			left:   fromX,
 			top:    g.fft.top,
@@ -326,10 +328,24 @@ func drawPeaks(cr *cairo.Context, g geometry, data core.Panorama) []rect {
 		}
 		mouseOver := r.contains(g.mouse)
 
+		cr.SetFontSize(10.0)
+		freqText := fmt.Sprintf("%.2fkHz", peak.MaxFrequency/1000)
+		freqExtents := cr.TextExtents(freqText)
+		freqX := g.fft.left + float64(data.ToPx(peak.MaxFrequency))
+		leftSide := freqX+padding+freqExtents.Width < g.fft.right
+
 		if mouseOver {
 			cr.SetSourceRGBA(0.3, 1, 0.8, 0.4)
 			cr.Rectangle(r.left, r.top, r.width(), r.height())
 			cr.Fill()
+
+			cr.SetSourceRGB(0.3, 1, 0.8)
+			if leftSide {
+				cr.MoveTo(freqX+padding, y+padding)
+			} else {
+				cr.MoveTo(freqX-padding-freqExtents.Width, y+padding)
+			}
+			cr.ShowText(freqText)
 		} else {
 			cr.SetSourceRGBA(0.3, 1, 0.8, 0.2)
 		}

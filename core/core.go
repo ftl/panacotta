@@ -49,8 +49,48 @@ func (r FrequencyRange) Expanded(Δ Frequency) FrequencyRange {
 // DB represents decibel (dB).
 type DB float64
 
-func (f DB) String() string {
-	return fmt.Sprintf("%.2fdB", f)
+func (l DB) String() string {
+	return fmt.Sprintf("%.2fdB", l)
+}
+
+func (l DB) ToSUnit() (s int, unit SUnit, add DB) {
+	for i := len(SUnits) - 1; i >= 0; i-- {
+		if l >= DB(SUnits[i]) {
+			s = i
+			unit = SUnits[i]
+			add = l - DB(unit)
+			return s, unit, add
+		}
+	}
+	return 0, S0, l - DB(S0)
+}
+
+type SUnit DB
+
+const (
+	S0 SUnit = -127
+	S1 SUnit = -121
+	S2 SUnit = -115
+	S3 SUnit = -109
+	S4 SUnit = -103
+	S5 SUnit = -97
+	S6 SUnit = -91
+	S7 SUnit = -85
+	S8 SUnit = -79
+	S9 SUnit = -73
+)
+
+var SUnits = []SUnit{S0, S1, S2, S3, S4, S5, S6, S7, S8, S9}
+
+func (u SUnit) String() string {
+	s, _, add := DB(u).ToSUnit()
+	if s == 9 {
+		return fmt.Sprintf("S%d+%.0fdB", s, add)
+	} else if s > 0 {
+		return fmt.Sprintf("S%d", s)
+	} else {
+		return fmt.Sprintf("S%d%.0fdB", s, add)
+	}
 }
 
 // DBRange represents a range of dB.
@@ -108,10 +148,12 @@ type DBMark struct {
 
 // PeakMark contains all information to visualize a peak
 type PeakMark struct {
-	From  Px
-	To    Px
-	Max   Px
-	Value Px
+	FromX        Px
+	ToX          Px
+	MaxX         Px
+	MaxFrequency Frequency
+	ValueY       Px
+	ValueDB      DB
 }
 
 // HzPerPx unit for resolution
@@ -160,6 +202,7 @@ type VFO struct {
 	Frequency   Frequency
 	FilterWidth Frequency
 	Mode        string
+	SignalLevel DB
 }
 
 // FFT data and the corresponding frequency range
