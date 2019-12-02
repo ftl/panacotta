@@ -14,7 +14,7 @@ import (
 	"github.com/ftl/panacotta/core"
 )
 
-const smoothingLength = 10 // TODO make configurable
+const smoothingLength = 5 // 10 // TODO make configurable
 type smoother interface {
 	Put([]float64) []float64
 }
@@ -329,15 +329,15 @@ func fft(samples []complex128) ([]float64, float64) {
 			resultIndex = i - blockCenter
 		}
 
-		result[resultIndex] = fftValueToDB(v, blockSize)
+		result[resultIndex] = fftValue2dBm(v, blockSize)
 		mean += result[resultIndex]
 	}
 	mean /= float64(blockSize)
 	return result, mean
 }
 
-func fftValueToDB(fftValue complex128, blockSize int) float64 {
-	return 20.0 * math.Log10(2*math.Sqrt(math.Pow(real(fftValue), 2)+math.Pow(imag(fftValue), 2))/float64(blockSize))
+func fftValue2dBm(fftValue complex128, blockSize int) float64 {
+	return 10.0 * math.Log10(20*(math.Pow(real(fftValue), 2)+math.Pow(imag(fftValue), 2))/math.Pow(float64(blockSize), 2))
 }
 
 func peaks(fft []float64, mean float64) ([]core.PeakIndexRange, float64) {
