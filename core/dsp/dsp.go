@@ -142,12 +142,7 @@ func (d *DSP) doWork(work work) {
 	if d.decimation == 1 {
 		outputSamples = shift(work.samples, toRate(d.Δf, d.sampleRate))
 	} else {
-		// outputSamples = shift(work.samples, toRate(d.Δf, d.sampleRate))
-		// outputSamples = fftDecimate(outputSamples, d.decimation, d.filterWindow)
-		outputSamples = shiftAndDecimate(work.samples, toRate(d.Δf, d.sampleRate), 2, d.filterCoeff)
-		for i := d.decimation / 2; i > 1; i /= 2 {
-			outputSamples = decimate(outputSamples, 2, d.filterCoeff)
-		}
+		outputSamples = fftShiftAndDecimate(work.samples, toRate(d.Δf, d.sampleRate), d.decimation, d.filterWindow)
 	}
 
 	for i := range outputSamples {
@@ -333,6 +328,25 @@ func fftDecimate(samples []complex128, decimation int, filterWindow []complex128
 	return result
 }
 
+func fftShiftAndDecimate(samples []complex128, shiftRate float64, decimation int, filterWindow []complex128) []complex128 {
+	frequencyDomain := dsp.FFT(samples)
+	blockSize := len(frequencyDomain)
+	shiftOffset := int(shiftRate * float64(blockSize))
+	shifted := make([]complex128, blockSize)
+	for i := range frequencyDomain {
+		shiftedIndex := (blockSize + shiftOffset + i) % blockSize
+		shifted[shiftedIndex] = frequencyDomain[i] * filterWindow[shiftedIndex]
+	}
+	timeDomain := dsp.IFFT(shifted)
+
+	result := make([]complex128, len(samples)/decimation)
+	for i := 0; i < len(timeDomain); i += decimation {
+		result[i/decimation] = timeDomain[i]
+	}
+
+	return result
+}
+
 func fft(samples []complex128) ([]float64, float64) {
 	cfft := dsp.FFT(samples)
 
@@ -452,7 +466,7 @@ func sinc(x float64) float64 {
 
 func fftLowpass(blockSize int, decimation int) []complex128 {
 	impulseResponse := make([]complex128, blockSize)
-	filter := firLowpass(129, 1.0/float64(2*decimation))
+	filter := firLowpass(blockSize/2+1, 1.0/float64(2*decimation))
 	copy(impulseResponse, filter)
 	return dsp.FFT(impulseResponse)
 }
