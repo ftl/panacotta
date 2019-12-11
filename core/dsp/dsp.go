@@ -56,6 +56,7 @@ type DSP struct {
 	Δf              float64
 	decimation      int
 	filterCoeff     []complex128
+	filterWindow    []complex128
 	fullRangeMode   bool
 
 	smoother smoother
@@ -117,9 +118,10 @@ func (d *DSP) doWork(work work) {
 	}
 	if work.fftRange != d.fftRange || needReconfiguration {
 		d.fftRange = work.fftRange
-		d.Δf = -(float64(d.fftRange.Center() - d.vfo.Frequency + d.ifCenter - d.rxCenter))
+		d.Δf = float64(d.ifCenter - d.rxCenter - d.fftRange.Center() + d.vfo.Frequency)
 		d.outputBlockSize = findBlocksize(int(float64(d.inputBlockSize)/(float64(d.sampleRate)/(2*float64(d.fftRange.Width())))), d.inputBlockSize)
 		d.decimation = d.inputBlockSize / d.outputBlockSize
+		d.filterWindow = fftLowpass(d.inputBlockSize, d.decimation)
 		needReconfiguration = true
 	}
 	if oldOutputBlockSize != d.outputBlockSize {
@@ -133,13 +135,15 @@ func (d *DSP) doWork(work work) {
 	}
 	if needReconfiguration {
 		log.Printf("fftRange %f %f %f (%f) | vfo %f | if %f | rx %f", d.fftRange.From, d.fftRange.Center(), d.fftRange.To, d.fftRange.Width(), d.vfo.Frequency, d.ifCenter, d.rxCenter)
-		log.Printf("reconfiguration: %d %d %f %f", d.decimation, d.outputBlockSize, d.fftRange.Width(), d.Δf)
+		log.Printf("reconfiguration: %d %d %f %f %f", d.decimation, d.outputBlockSize, d.fftRange.Width(), d.Δf, toRate(d.Δf, d.sampleRate))
 	}
 
 	var outputSamples []complex128
 	if d.decimation == 1 {
 		outputSamples = shift(work.samples, toRate(d.Δf, d.sampleRate))
 	} else {
+		// outputSamples = shift(work.samples, toRate(d.Δf, d.sampleRate))
+		// outputSamples = fftDecimate(outputSamples, d.decimation, d.filterWindow)
 		outputSamples = shiftAndDecimate(work.samples, toRate(d.Δf, d.sampleRate), 2, d.filterCoeff)
 		for i := d.decimation / 2; i > 1; i /= 2 {
 			outputSamples = decimate(outputSamples, 2, d.filterCoeff)
@@ -314,6 +318,21 @@ func shiftAndDecimate(samples []complex128, shiftRate float64, decimation int, f
 	return outputSamples
 }
 
+func fftDecimate(samples []complex128, decimation int, filterWindow []complex128) []complex128 {
+	frequencyDomain := dsp.FFT(samples)
+	for i := range frequencyDomain {
+		frequencyDomain[i] *= filterWindow[i]
+	}
+	timeDomain := dsp.IFFT(frequencyDomain)
+
+	result := make([]complex128, len(samples)/decimation)
+	for i := 0; i < len(timeDomain); i += decimation {
+		result[i/decimation] = timeDomain[i]
+	}
+
+	return result
+}
+
 func fft(samples []complex128) ([]float64, float64) {
 	cfft := dsp.FFT(samples)
 
@@ -421,7 +440,6 @@ func firLowpass(order int, cutoffRate float64) []complex128 {
 	for i := range result {
 		result[i] = complex((coeff[i] / sum), 0)
 	}
-	log.Print(result)
 	return result
 }
 
@@ -430,4 +448,11 @@ func sinc(x float64) float64 {
 		return 1.0
 	}
 	return math.Sin(math.Pi*x) / (math.Pi * x)
+}
+
+func fftLowpass(blockSize int, decimation int) []complex128 {
+	impulseResponse := make([]complex128, blockSize)
+	filter := firLowpass(129, 1.0/float64(2*decimation))
+	copy(impulseResponse, filter)
+	return dsp.FFT(impulseResponse)
 }

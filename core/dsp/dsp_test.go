@@ -78,7 +78,7 @@ func TestFFTTonePeak(t *testing.T) {
 
 func TestShift(t *testing.T) {
 	blockSize := 16
-	for f := -0.5; f <= 0.5; f += 0.01 {
+	for f := -0.5; f <= 0.5; f += 0.001 {
 		samples := tone(blockSize, f)
 
 		shifted := shift(samples, -f)
