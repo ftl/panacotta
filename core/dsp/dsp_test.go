@@ -55,7 +55,7 @@ func TestFFTTonePeak(t *testing.T) {
 			fft := dsp.FFT(samples)
 			magnitudes := make([]float64, len(fft))
 			for i, c := range fft {
-				magnitudes[i] = fftValueToDB(c, blockSize)
+				magnitudes[i] = fftValue2dBm(c, blockSize)
 			}
 
 			peak := peakIndex(f, blockSize)
@@ -85,7 +85,7 @@ func TestShift(t *testing.T) {
 		fft := dsp.FFT(shifted)
 		magnitudes := make([]float64, len(fft))
 		for i, c := range fft {
-			magnitudes[i] = fftValueToDB(c, blockSize)
+			magnitudes[i] = fftValue2dBm(c, blockSize)
 		}
 
 		peak := 0
