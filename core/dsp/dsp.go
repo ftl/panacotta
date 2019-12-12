@@ -370,7 +370,7 @@ func fft(samples []complex128) ([]float64, float64) {
 }
 
 func fftValue2dBm(fftValue complex128, blockSize int) float64 {
-	return 10.0 * math.Log10(20*(math.Pow(real(fftValue), 2)+math.Pow(imag(fftValue), 2))/math.Pow(float64(blockSize), 2))
+	return 20.0 * math.Log10(20*(math.Pow(real(fftValue), 2)+math.Pow(imag(fftValue), 2))/math.Pow(float64(blockSize), 2))
 }
 
 func peaks(fft []float64, mean float64) ([]core.PeakIndexRange, float64) {
