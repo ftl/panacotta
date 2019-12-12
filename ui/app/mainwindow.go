@@ -7,19 +7,19 @@ import (
 )
 
 type mainWindow struct {
-	window *gtk.ApplicationWindow
+	Window *gtk.ApplicationWindow
 }
 
 func newMainWindow(builder *gtk.Builder, application *gtk.Application) *mainWindow {
 	result := new(mainWindow)
 
-	result.window = ui.Get(builder, "mainWindow").(*gtk.ApplicationWindow)
-	result.window.SetApplication(application)
-	result.window.SetDefaultSize(2500, 300)
+	result.Window = ui.Get(builder, "mainWindow").(*gtk.ApplicationWindow)
+	result.Window.SetApplication(application)
+	result.Window.SetDefaultSize(2500, 300)
 
 	return result
 }
 
 func (w *mainWindow) Show() {
-	w.window.ShowAll()
+	w.Window.ShowAll()
 }
