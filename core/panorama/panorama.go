@@ -251,7 +251,6 @@ func (p Panorama) data() core.Panorama {
 		return core.Panorama{}
 	}
 
-	spectrum, peaks := p.spectrumAndPeaks()
 	result := core.Panorama{
 		FrequencyRange: p.frequencyRange,
 		VFO:            p.vfo,
@@ -265,9 +264,9 @@ func (p Panorama) data() core.Panorama {
 
 		FrequencyScale:    p.frequencyScale(),
 		DBScale:           p.dbScale(),
-		Spectrum:          spectrum,
+		Spectrum:          p.spectrum(),
 		PeakThresholdLine: p.dbRange.ToFrct(core.DB(p.fft.PeakThreshold)),
-		Peaks:             peaks,
+		Peaks:             p.peaks(),
 	}
 
 	return result
@@ -335,7 +334,7 @@ func (p Panorama) dbScale() []core.DBMark {
 	return dbScale
 }
 
-func (p Panorama) spectrumAndPeaks() ([]core.FPoint, []core.PeakMark) {
+func (p Panorama) spectrum() []core.FPoint {
 	fftResolution := p.fft.Resolution()
 	step := int(math.Max(1, math.Floor(float64(len(p.fft.Data))/float64(p.width))))
 	start := int(math.Max(0, math.Floor(float64(p.frequencyRange.From-p.fft.Range.From)/fftResolution)))
@@ -360,6 +359,10 @@ func (p Panorama) spectrumAndPeaks() ([]core.FPoint, []core.PeakMark) {
 		resultIndex++
 	}
 
+	return result
+}
+
+func (p Panorama) peaks() []core.PeakMark {
 	correction := func(i int) core.Frequency {
 		if i <= 0 || i >= len(p.fft.Data)-1 {
 			return 0
@@ -398,11 +401,11 @@ func (p Panorama) spectrumAndPeaks() ([]core.FPoint, []core.PeakMark) {
 		}
 	}
 
-	peaks := make([]core.PeakMark, 0, len(p.fft.Peaks))
+	result := make([]core.PeakMark, 0, len(p.fft.Peaks))
 	for key, peak := range p.peakBuffer {
 		age := now.Sub(peak.lastSeen)
 		if now.Sub(peak.lastSeen) < p.peakTimeout && p.frequencyRange.Contains(peak.maxFrequency) /*&& peak.count > 2*/ {
-			peaks = append(peaks, core.PeakMark{
+			result = append(result, core.PeakMark{
 				FromX:        p.frequencyRange.ToFrct(peak.frequencyRange.From),
 				ToX:          p.frequencyRange.ToFrct(peak.frequencyRange.To),
 				MaxX:         p.frequencyRange.ToFrct(peak.maxFrequency),
@@ -418,5 +421,5 @@ func (p Panorama) spectrumAndPeaks() ([]core.FPoint, []core.PeakMark) {
 		}
 	}
 
-	return result, peaks
+	return result
 }
