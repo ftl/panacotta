@@ -348,11 +348,10 @@ func (p Panorama) spectrumAndPeaks() ([]core.FPoint, []core.PeakMark) {
 	result := make([]core.FPoint, resultLength)
 	resultIndex := 0
 	for i := start; i <= end; i += step {
-		d := 0.0
+		d := -1000.0
 		for j := i; j < i+step && j < len(p.fft.Data); j++ {
-			d += p.fft.Data[j]
+			d = math.Max(d, p.fft.Data[j])
 		}
-		d /= float64(step)
 
 		result[resultIndex] = core.FPoint{
 			X: p.frequencyRange.ToFrct(p.fft.Frequency(i)),

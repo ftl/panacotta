@@ -58,7 +58,7 @@ func (v *View) onDraw(da *gtk.DrawingArea, cr *cairo.Context) {
 	g.mouse = point{v.mouse.x, v.mouse.y}
 	g.widget.bottom, g.widget.right = float64(da.GetAllocatedHeight()), float64(da.GetAllocatedWidth())
 	g.fft.left = v.fftTopLeft.x
-	g.fft.top = v.fftTopLeft.x
+	g.fft.top = v.fftTopLeft.y
 
 	g.dbScale = drawDBScale(cr, g, data)
 	g.bandIndicator = drawBandIndicator(cr, g, data)

@@ -2,6 +2,7 @@ package core
 
 import (
 	"fmt"
+	"math"
 )
 
 // Frequency represents a frequency in Hz.
@@ -114,7 +115,7 @@ func (r DBRange) String() string {
 
 // Width of the dB range.
 func (r DBRange) Width() DB {
-	return r.To - r.From
+	return DB(math.Abs(float64(r.To - r.From)))
 }
 
 // Contains the given value in dB.
@@ -124,7 +125,7 @@ func (r DBRange) Contains(value DB) bool {
 
 // ToFrct returns the fraction of the given value in this range.
 func (r DBRange) ToFrct(value DB) Frct {
-	return Frct((value - r.From) / (r.To - r.From))
+	return Frct(float64((value - r.From) / r.Width()))
 }
 
 // ToDB converts the given fraction into a DB value in this range.
