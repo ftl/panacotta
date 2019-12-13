@@ -26,8 +26,7 @@ func Open(address string) (*VFO, error) {
 		address:         address,
 		trxTimeout:      100 * time.Millisecond,
 		pollingInterval: 500 * time.Millisecond,
-		tuneTo:          make(chan core.Frequency, 1),
-		tuneBy:          make(chan core.Frequency, 1),
+		command:         make(chan command, 1),
 		stateLock:       new(sync.RWMutex),
 		data:            make(chan core.VFO, 1),
 	}
@@ -40,14 +39,15 @@ func Open(address string) (*VFO, error) {
 	return &result, nil
 }
 
+type command func() error
+
 // VFO type.
 type VFO struct {
 	address         string
 	trx             *protocol.Transceiver
 	trxTimeout      time.Duration
 	pollingInterval time.Duration
-	tuneTo          chan core.Frequency
-	tuneBy          chan core.Frequency
+	command         chan command
 	state           core.VFO
 	stateLock       *sync.RWMutex
 
@@ -62,18 +62,13 @@ func (v *VFO) Run(stop chan struct{}) {
 		for {
 			var err error
 			select {
-			case f := <-v.tuneTo:
-				err = v.sendFrequency(f)
-
-			case Δf := <-v.tuneBy:
-				currentFrequency := v.CurrentFrequency()
-				err = v.sendFrequency(currentFrequency + Δf)
-
+			case cmd := <-v.command:
+				err = cmd()
 			case <-stop:
 				return
 			}
 			if err != nil {
-				log.Print(err)
+				log.Printf("VFO: %v", err)
 				err = nil
 			}
 		}
@@ -208,22 +203,27 @@ func (v *VFO) Data() <-chan core.VFO {
 	return v.data
 }
 
+func (v *VFO) q(cmd command) {
+	select {
+	case v.command <- cmd:
+	default:
+		log.Print("VFO.q hangs")
+	}
+}
+
 // TuneTo the given frequency.
 func (v *VFO) TuneTo(f core.Frequency) {
-	select {
-	case v.tuneTo <- f:
-	default:
-		log.Print("VFO.TuneTo hangs")
-	}
+	v.q(func() error {
+		return v.sendFrequency(f)
+	})
 }
 
 // TuneBy the given frequency delta.
 func (v *VFO) TuneBy(Δf core.Frequency) {
-	select {
-	case v.tuneBy <- Δf:
-	default:
-		log.Print("VFO.TuneBy hangs")
-	}
+	v.q(func() error {
+		currentFrequency := v.CurrentFrequency()
+		return v.sendFrequency(currentFrequency + Δf)
+	})
 }
 
 // CurrentFrequency returns the current frequency of the VFO.
@@ -241,7 +241,7 @@ func (v *VFO) CurrentMode() (string, core.Frequency) {
 }
 
 func fToHamlib(f core.Frequency) string {
-	return fmt.Sprintf("%d", int(f))
+	return fmt.Sprintf("%d", int(f/10.0)*10)
 }
 
 func hamlibToF(s string) (core.Frequency, error) {
