@@ -77,9 +77,9 @@ func (v *View) onClick(button uint) {
 
 func (v *View) onSingleLeftClick(x, y float64) {
 	pointer := point{x, y}
-	for _, r := range v.geometry.peaks {
+	for i, r := range v.geometry.peaks {
 		if r.contains(pointer) {
-			f := v.deviceToFrequency(r.left + (r.right-r.left)/2)
+			f := v.data.Peaks[i].MaxFrequency
 			v.controller.TuneTo(f)
 			return
 		}
