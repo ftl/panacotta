@@ -75,8 +75,8 @@ func (c *Controller) Startup() {
 func (c *Controller) openSamplesInput(centerFrequency int, sampleRate int, blockSize int, frequencyCorrection int, testmode bool) (core.SamplesInput, error) {
 	if testmode {
 		log.Printf("Testmode, using random samples input")
-		// return dsp.NewRandomInput(blockSize, sampleRate), nil
-		return dsp.NewToneInput(blockSize, sampleRate, 460000.0), nil
+		return dsp.NewRandomInput(blockSize, sampleRate), nil
+		// return dsp.NewToneInput(blockSize, sampleRate, 460000.0), nil
 		// return dsp.NewSweepInput(blockSize, sampleRate, -float64(sampleRate/2), float64(sampleRate/2), float64(sampleRate)*0.001), nil
 		// return dsp.NewSweepInput(blockSize, sampleRate, 0, float64(sampleRate), float64(sampleRate)*0.001), nil
 	}

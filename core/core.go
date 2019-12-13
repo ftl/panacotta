@@ -46,6 +46,16 @@ func (r FrequencyRange) Expanded(Δ Frequency) FrequencyRange {
 	return FrequencyRange{From: r.From - Δ, To: r.To + Δ}
 }
 
+// ToFrct returns the fraction of the given frequency in this range.
+func (r FrequencyRange) ToFrct(f Frequency) Frct {
+	return Frct((f - r.From) / (r.To - r.From))
+}
+
+// ToFrequency converts the given fraction into a frequency from this range.
+func (r FrequencyRange) ToFrequency(f Frct) Frequency {
+	return r.From + (r.To-r.From)*Frequency(f)
+}
+
 // DB represents decibel (dB).
 type DB float64
 
@@ -112,6 +122,16 @@ func (r DBRange) Contains(value DB) bool {
 	return value >= r.From && value <= r.To
 }
 
+// ToFrct returns the fraction of the given value in this range.
+func (r DBRange) ToFrct(value DB) Frct {
+	return Frct((value - r.From) / (r.To - r.From))
+}
+
+// ToDB converts the given fraction into a DB value in this range.
+func (r DBRange) ToDB(f Frct) DB {
+	return r.From + (r.To-r.From)*DB(f)
+}
+
 // Configuration parameters of the application.
 type Configuration struct {
 	FrequencyCorrection int
@@ -124,6 +144,14 @@ type Configuration struct {
 type SamplesInput interface {
 	Samples() <-chan []complex128
 	Close() error
+}
+
+// Frct is a fraction of height or width; this is a abstraction of the coordinates on the screen.
+type Frct float64
+
+// FPoint represents a point on the screen using the Frct unit for its coordinates.
+type FPoint struct {
+	X, Y Frct
 }
 
 // Px unit for pixels
@@ -214,6 +242,7 @@ type FFT struct {
 	Peaks         []PeakIndexRange
 }
 
+// PeakIndexRange contains the index values within FFT data that describe a peak.
 type PeakIndexRange struct {
 	From  int
 	To    int
