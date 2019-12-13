@@ -25,6 +25,14 @@ func (r rect) contains(p point) bool {
 	return r.left <= p.x && r.right >= p.x && r.top <= p.y && r.bottom >= p.y
 }
 
+func (r rect) toX(f core.Frct) float64 {
+	return r.left + r.width()*float64(f)
+}
+
+func (r rect) toY(f core.Frct) float64 {
+	return r.bottom - r.height()*float64(f)
+}
+
 type point struct {
 	x, y float64
 }
@@ -49,8 +57,8 @@ func (v *View) onDraw(da *gtk.DrawingArea, cr *cairo.Context) {
 	var g geometry
 	g.mouse = point{v.mouse.x, v.mouse.y}
 	g.widget.bottom, g.widget.right = float64(da.GetAllocatedHeight()), float64(da.GetAllocatedWidth())
-	g.fft.left = float64(v.fftTopLeft.X)
-	g.fft.top = float64(v.fftTopLeft.Y)
+	g.fft.left = v.fftTopLeft.x
+	g.fft.top = v.fftTopLeft.x
 
 	g.dbScale = drawDBScale(cr, g, data)
 	g.bandIndicator = drawBandIndicator(cr, g, data)
@@ -87,7 +95,7 @@ func drawDBScale(cr *cairo.Context, g geometry, data core.Panorama) rect {
 	cr.SetLineWidth(0.5)
 	cr.SetDash([]float64{2, 2}, 0)
 	for _, mark := range data.DBScale {
-		y := r.bottom - float64(mark.Y)
+		y := r.toY(mark.Y)
 		cr.MoveTo(r.right, y)
 		cr.LineTo(g.widget.right, y)
 		// TODO maybe use a color indication for the signal level similar to the waterfall
@@ -102,7 +110,7 @@ func drawDBScale(cr *cairo.Context, g geometry, data core.Panorama) rect {
 	cr.SetSourceRGB(1.0, 0.3, 0.3)
 	cr.SetLineWidth(1.0)
 	cr.SetDash([]float64{2, 2}, 0)
-	y := r.bottom - float64(data.MeanLine)
+	y := r.toY(data.PeakThresholdLine)
 	cr.MoveTo(r.left, y)
 	cr.LineTo(g.widget.right, y)
 	cr.Stroke()
@@ -164,7 +172,7 @@ func drawFrequencyScale(cr *cairo.Context, g geometry, data core.Panorama) rect 
 	cr.SetLineWidth(0.5)
 	cr.SetDash([]float64{2, 2}, 0)
 	for _, mark := range data.FrequencyScale {
-		x := r.left + float64(mark.X)
+		x := r.toX(mark.X)
 		if x < r.left || x > r.right {
 			continue
 		}
@@ -195,8 +203,8 @@ func drawModeIndicator(cr *cairo.Context, g geometry, data core.Panorama) rect {
 	cr.SetLineWidth(1.0)
 
 	for _, portion := range data.Band.Portions {
-		startX := r.left + float64(data.ToPx(portion.From))
-		endX := r.left + float64(data.ToPx(portion.To))
+		startX := r.toX(data.FrequencyRange.ToFrct(portion.From))
+		endX := r.toX(data.FrequencyRange.ToFrct(portion.To))
 		if endX < r.left || startX > r.right {
 			continue
 		}
@@ -239,22 +247,22 @@ func drawFFT(cr *cairo.Context, g geometry, data core.Panorama) rect {
 	if len(data.Spectrum) == 0 {
 		return r
 	}
-	startX := r.left + float64(data.Spectrum[0].X)
+	startX := r.toX(data.Spectrum[0].X)
 
 	cr.SetSourceRGBA(1, 1, 1, 0.3)
 	cr.MoveTo(startX, r.bottom)
 	for _, p := range data.Spectrum {
-		cr.LineTo(r.left+float64(p.X), r.bottom-float64(p.Y))
+		cr.LineTo(r.toX(p.X), r.toY(p.Y))
 	}
-	cr.LineTo(r.left+float64(data.Spectrum[len(data.Spectrum)-1].X), r.bottom)
+	cr.LineTo(r.toX(data.Spectrum[len(data.Spectrum)-1].X), r.bottom)
 	cr.ClosePath()
 	cr.Fill()
 
 	cr.SetSourceRGB(1, 1, 1)
 	cr.SetLineWidth(1.0)
-	cr.MoveTo(startX, r.bottom-float64(data.Spectrum[0].Y))
+	cr.MoveTo(startX, r.toY(data.Spectrum[0].Y))
 	for _, p := range data.Spectrum {
-		cr.LineTo(r.left+float64(p.X), r.bottom-float64(p.Y))
+		cr.LineTo(r.toX(p.X), r.toY(p.Y))
 	}
 	cr.Stroke()
 
@@ -270,10 +278,10 @@ func drawVFO(cr *cairo.Context, g geometry, data core.Panorama) rect {
 		bottom: g.fft.bottom,
 	}
 
-	freqX := g.fft.left + float64(data.ToPx(data.VFO.Frequency))
+	freqX := g.fft.toX(data.VFOLine)
 	padding := 4.0
-	filterX := g.fft.left + float64(data.VFOFilterFrom)
-	filterWidth := float64(data.VFOFilterTo - data.VFOFilterFrom)
+	filterX := g.fft.toX(data.VFOFilterFrom)
+	filterWidth := g.fft.toX(data.VFOFilterTo) - g.fft.toX(data.VFOFilterFrom)
 	r.left = filterX
 	r.right = filterX + filterWidth
 	mouseOver := r.contains(g.mouse)
@@ -324,10 +332,10 @@ func drawPeaks(cr *cairo.Context, g geometry, data core.Panorama) []rect {
 
 	result := make([]rect, len(data.Peaks))
 	for i, peak := range data.Peaks {
-		fromX := g.fft.left + float64(peak.FromX)
-		toX := g.fft.left + float64(peak.ToX)
-		maxX := g.fft.left + float64(peak.MaxX)
-		y := g.fft.bottom - float64(peak.ValueY)
+		fromX := g.fft.toX(peak.FromX)
+		toX := g.fft.toX(peak.ToX)
+		maxX := g.fft.toX(peak.MaxX)
+		y := g.fft.toY(peak.ValueY)
 		r := rect{
 			left:   fromX,
 			top:    g.fft.top,

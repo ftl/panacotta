@@ -154,35 +154,30 @@ type FPoint struct {
 	X, Y Frct
 }
 
-// Px unit for pixels
-type Px float64
-
-// PxPoint unit for pixel coordinates
-type PxPoint struct {
-	X, Y Px
-}
-
 // FrequencyMark on the frequency scale
 type FrequencyMark struct {
 	Frequency Frequency
-	X         Px
+	X         Frct
 }
 
 // DBMark on the dB scale
 type DBMark struct {
 	DB DB
-	Y  Px
+	Y  Frct
 }
 
 // PeakMark contains all information to visualize a peak
 type PeakMark struct {
-	FromX        Px
-	ToX          Px
-	MaxX         Px
+	FromX        Frct
+	ToX          Frct
+	MaxX         Frct
 	MaxFrequency Frequency
-	ValueY       Px
+	ValueY       Frct
 	ValueDB      DB
 }
+
+// Px unit for pixels
+type Px float64
 
 // HzPerPx unit for resolution
 type HzPerPx float64
@@ -204,15 +199,16 @@ type Panorama struct {
 	Band           Band
 	Resolution     HzPerPx
 
-	VFOLine        Px
-	VFOFilterFrom  Px
-	VFOFilterTo    Px
+	VFOLine        Frct
+	VFOFilterFrom  Frct
+	VFOFilterTo    Frct
 	VFOSignalLevel DB
-	FrequencyScale []FrequencyMark
-	DBScale        []DBMark
-	Spectrum       []PxPoint
-	MeanLine       Px
-	Peaks          []PeakMark
+
+	FrequencyScale    []FrequencyMark
+	DBScale           []DBMark
+	Spectrum          []FPoint
+	PeakThresholdLine Frct
+	Peaks             []PeakMark
 }
 
 // ToPx converts the given frequency in Hz to Px within the panorama.
@@ -240,6 +236,21 @@ type FFT struct {
 	Mean          float64
 	PeakThreshold float64
 	Peaks         []PeakIndexRange
+}
+
+// Resolution of this FFT in Hz per Bin
+func (fft FFT) Resolution() float64 {
+	return float64(fft.Range.Width()) / float64(len(fft.Data))
+}
+
+// Frequency returns the center frequency of the ith bin of this FFT.
+func (fft FFT) Frequency(i int) Frequency {
+	return fft.Range.From + Frequency(float64(i)*fft.Resolution()+fft.Resolution()/2)
+}
+
+// ToIndex returns the index of the bin that the given frequency belongs to.
+func (fft FFT) ToIndex(f Frequency) int {
+	return int(float64(f-fft.Range.From) / fft.Resolution())
 }
 
 // PeakIndexRange contains the index values within FFT data that describe a peak.
