@@ -49,17 +49,23 @@ type geometry struct {
 	peaks          []rect
 }
 
+var dim = struct {
+	spacing                float64
+	modeIndicatorHeight    float64
+	frequencyScaleFontSize float64
+	dbScaleFontSize        float64
+}{
+	spacing:                2.0,
+	modeIndicatorHeight:    5.0,
+	frequencyScaleFontSize: 10.0,
+	dbScaleFontSize:        10.0,
+}
+
 func (v *View) onDraw(da *gtk.DrawingArea, cr *cairo.Context) {
 	data := v.data
-
 	fillBackground(cr)
 
-	var g geometry
-	g.mouse = point{v.mouse.x, v.mouse.y}
-	g.widget.bottom, g.widget.right = float64(da.GetAllocatedHeight()), float64(da.GetAllocatedWidth())
-	g.fft.left = v.fftTopLeft.x
-	g.fft.top = v.fftTopLeft.y
-
+	g := v.prepareGeometry(da, cr)
 	g.dbScale = drawDBScale(cr, g, data)
 	g.bandIndicator = drawBandIndicator(cr, g, data)
 	g.frequencyScale = drawFrequencyScale(cr, g, data)
@@ -79,18 +85,44 @@ func fillBackground(cr *cairo.Context) {
 	cr.Paint()
 }
 
+func (v *View) prepareGeometry(da *gtk.DrawingArea, cr *cairo.Context) geometry {
+	cr.Save()
+	defer cr.Restore()
+
+	result := geometry{
+		mouse:  point{x: v.mouse.x, y: v.mouse.y},
+		widget: rect{bottom: float64(da.GetAllocatedHeight()), right: float64(da.GetAllocatedWidth())},
+	}
+
+	cr.SetFontSize(dim.frequencyScaleFontSize)
+	frequencyScaleExtents := cr.TextExtents("Hg")
+	cr.SetFontSize(dim.dbScaleFontSize)
+	dbScaleExtents := cr.TextExtents("-000.0dB")
+
+	result.frequencyScale.bottom = frequencyScaleExtents.Height + 2*dim.spacing
+	result.modeIndicator.bottom = result.frequencyScale.bottom + 2*dim.modeIndicatorHeight
+	result.dbScale.right = dbScaleExtents.Width + 2*dim.spacing
+	result.fft = rect{
+		top:    result.modeIndicator.bottom,
+		left:   result.dbScale.right,
+		bottom: result.widget.bottom,
+		right:  result.widget.right,
+	}
+
+	return result
+}
+
 func drawDBScale(cr *cairo.Context, g geometry, data core.Panorama) rect {
 	cr.Save()
 	defer cr.Restore()
 
-	const spacing = float64(2.0)
 	r := rect{
 		right:  g.fft.left,
 		top:    g.fft.top,
-		bottom: g.widget.bottom,
+		bottom: g.fft.bottom,
 	}
 
-	cr.SetFontSize(10.0)
+	cr.SetFontSize(dim.dbScaleFontSize)
 	cr.SetSourceRGB(0.8, 0.8, 0.8)
 	cr.SetLineWidth(0.5)
 	cr.SetDash([]float64{2, 2}, 0)
@@ -103,7 +135,7 @@ func drawDBScale(cr *cairo.Context, g geometry, data core.Panorama) rect {
 
 		dbText := fmt.Sprintf("%.0fdB", mark.DB)
 		extents := cr.TextExtents(dbText)
-		cr.MoveTo(r.right-extents.Width-spacing, y+extents.Height/2)
+		cr.MoveTo(r.right-extents.Width-dim.spacing, y+extents.Height/2)
 		cr.ShowText(dbText)
 	}
 
@@ -122,7 +154,6 @@ func drawBandIndicator(cr *cairo.Context, g geometry, data core.Panorama) rect {
 	cr.Save()
 	defer cr.Restore()
 
-	const spacing = float64(2.0)
 	r := rect{
 		left:   g.dbScale.left,
 		right:  g.dbScale.right,
@@ -139,7 +170,7 @@ func drawBandIndicator(cr *cairo.Context, g geometry, data core.Panorama) rect {
 
 	bandText := string(data.Band.Name)
 	extents := cr.TextExtents(bandText)
-	x := (r.right - extents.Width - spacing)
+	x := (r.right - extents.Width - dim.spacing)
 	y := (r.bottom + extents.Height) / 2
 
 	cr.MoveTo(x, y)
@@ -158,16 +189,13 @@ func drawFrequencyScale(cr *cairo.Context, g geometry, data core.Panorama) rect 
 	cr.Save()
 	defer cr.Restore()
 
-	const spacing = float64(2.0)
 	r := rect{
-		left:  g.fft.left,
-		right: g.widget.right,
+		left:   g.fft.left,
+		right:  g.fft.right,
+		bottom: g.frequencyScale.bottom,
 	}
 
-	cr.SetFontSize(10.0)
-	extents := cr.TextExtents("Hg")
-	r.bottom = extents.Height + 2*spacing
-
+	cr.SetFontSize(dim.frequencyScaleFontSize)
 	cr.SetSourceRGB(0.8, 0.8, 0.8)
 	cr.SetLineWidth(0.5)
 	cr.SetDash([]float64{2, 2}, 0)
@@ -181,7 +209,7 @@ func drawFrequencyScale(cr *cairo.Context, g geometry, data core.Panorama) rect 
 		cr.Stroke()
 
 		freqText := fmt.Sprintf("%.0fk", float64(mark.Frequency)/1000.0)
-		cr.MoveTo(x+spacing, r.bottom-spacing)
+		cr.MoveTo(x+dim.spacing, r.bottom-dim.spacing)
 		cr.ShowText(freqText)
 	}
 
@@ -192,13 +220,12 @@ func drawModeIndicator(cr *cairo.Context, g geometry, data core.Panorama) rect {
 	cr.Save()
 	defer cr.Restore()
 
-	const height = float64(5.0)
 	r := rect{
-		left:  g.frequencyScale.left,
-		top:   g.frequencyScale.bottom,
-		right: g.frequencyScale.right,
+		left:   g.frequencyScale.left,
+		top:    g.frequencyScale.bottom,
+		right:  g.frequencyScale.right,
+		bottom: g.modeIndicator.bottom,
 	}
-	r.bottom = r.top + 2*height
 
 	cr.SetLineWidth(1.0)
 
@@ -223,10 +250,10 @@ func drawModeIndicator(cr *cairo.Context, g geometry, data core.Panorama) rect {
 			cr.SetSourceRGB(1, 0, 0)
 		case core.ModeContest:
 			cr.SetSourceRGB(0.6, 0.3, 0)
-			yOffset = height
+			yOffset = dim.modeIndicatorHeight
 		}
 
-		cr.Rectangle(startX, r.top+yOffset, endX-startX, height)
+		cr.Rectangle(startX, r.top+yOffset, endX-startX, dim.modeIndicatorHeight)
 		cr.Fill()
 	}
 
@@ -237,12 +264,7 @@ func drawFFT(cr *cairo.Context, g geometry, data core.Panorama) rect {
 	cr.Save()
 	defer cr.Restore()
 
-	r := rect{
-		left:   g.fft.left,
-		right:  g.widget.right,
-		top:    g.fft.top,
-		bottom: g.widget.bottom,
-	}
+	r := g.fft
 
 	if len(data.Spectrum) == 0 {
 		return r
