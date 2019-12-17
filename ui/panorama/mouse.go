@@ -113,9 +113,7 @@ func (v *View) onSingleLeftClick(x, y float64) {
 			return
 		}
 	}
-	if v.geometry.vfo.contains(pointer) {
-		v.controller.ToggleViewMode()
-	} else if v.geometry.fft.contains(pointer) || v.geometry.waterfall.contains(pointer) {
+	if v.geometry.fft.contains(pointer) || v.geometry.waterfall.contains(pointer) {
 		v.controller.TuneTo(v.deviceToFrequency(x))
 	}
 }
