@@ -41,6 +41,8 @@ type Controller interface {
 	ZoomOut()
 	ZoomToBand()
 	ResetZoom()
+	FinerDynamicRange()
+	CoarserDynamicRange()
 }
 
 // View of the FFT.

@@ -121,12 +121,25 @@ func (v *View) onPointerMotion(da *gtk.DrawingArea, e *gdk.Event) {
 
 func (v *View) onScroll(da *gtk.DrawingArea, e *gdk.Event) {
 	scrollEvent := gdk.EventScrollNewFromEvent(e)
-	switch scrollEvent.Direction() {
-	case gdk.SCROLL_UP:
-		v.controller.TuneUp()
-	case gdk.SCROLL_DOWN:
-		v.controller.TuneDown()
-	default:
-		log.Printf("unknown scroll direction %d", scrollEvent.Direction())
+
+	pointer := point{scrollEvent.X(), scrollEvent.Y()}
+	if v.geometry.dbScale.contains(pointer) {
+		switch scrollEvent.Direction() {
+		case gdk.SCROLL_UP:
+			v.controller.FinerDynamicRange()
+		case gdk.SCROLL_DOWN:
+			v.controller.CoarserDynamicRange()
+		default:
+			log.Printf("unknown scroll direction %d", scrollEvent.Direction())
+		}
+	} else {
+		switch scrollEvent.Direction() {
+		case gdk.SCROLL_UP:
+			v.controller.TuneUp()
+		case gdk.SCROLL_DOWN:
+			v.controller.TuneDown()
+		default:
+			log.Printf("unknown scroll direction %d", scrollEvent.Direction())
+		}
 	}
 }

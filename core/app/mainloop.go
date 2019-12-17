@@ -67,6 +67,8 @@ type panoramaType interface {
 	ZoomOut()
 	ZoomToBand()
 	ResetZoom()
+	FinerDynamicRange()
+	CoarserDynamicRange()
 }
 
 func (m *mainLoop) Run(stop chan struct{}) {
@@ -182,6 +184,18 @@ func (m *mainLoop) ZoomToBand() {
 func (m *mainLoop) ResetZoom() {
 	m.q(func() {
 		m.panorama.ResetZoom()
+	})
+}
+
+func (m *mainLoop) FinerDynamicRange() {
+	m.q(func() {
+		m.panorama.FinerDynamicRange()
+	})
+}
+
+func (m *mainLoop) CoarserDynamicRange() {
+	m.q(func() {
+		m.panorama.CoarserDynamicRange()
 	})
 }
 

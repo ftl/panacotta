@@ -233,6 +233,20 @@ func (p *Panorama) ResetZoom() {
 	p.updateFrequencyRange()
 }
 
+func (p *Panorama) FinerDynamicRange() {
+	log.Print("finer")
+	Δdb := p.dbRange.Width() * 0.05
+	p.dbRange.From += Δdb
+	p.dbRange.To -= Δdb
+}
+
+func (p *Panorama) CoarserDynamicRange() {
+	log.Print("coarser")
+	Δdb := p.dbRange.Width() * 0.05
+	p.dbRange.From -= Δdb
+	p.dbRange.To += Δdb
+}
+
 // Drag the panorama horizontally by a certain amount of Hz.
 func (p *Panorama) Drag(Δf core.Frequency) {
 	p.frequencyRange.Shift(Δf)
