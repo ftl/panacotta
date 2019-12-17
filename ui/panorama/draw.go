@@ -65,6 +65,28 @@ var dim = struct {
 	fftWaterfallRatio:      0.5,
 }
 
+type colorMap []struct{ r, g, b float64 }
+
+func (c colorMap) toRGB(f core.Frct) (r, g, b float64) {
+	adaptedHeat := float64(f) * float64(len(c)-1)
+	colorIndex := int(adaptedHeat)
+	lower := c[int(math.Min(float64(colorIndex), float64(len(c)-1)))]
+	upper := c[int(math.Min(float64(colorIndex+1), float64(len(c)-1)))]
+	p := adaptedHeat - float64(colorIndex)
+	r = (1-p)*lower.r + p*upper.r
+	g = (1-p)*lower.g + p*upper.g
+	b = (1-p)*lower.b + p*upper.b
+	return
+}
+
+// var waterfallColors = colorMap{
+// 	{0, 0, 0}, {0, 0, 1},
+// }
+
+var waterfallColors = colorMap{
+	{0, 0, 0}, {0, 0, 1}, {0, 1, 1}, {1, 1, 1}, {1, 1, 0}, {1, 0, 0},
+}
+
 func (v *View) onDraw(da *gtk.DrawingArea, cr *cairo.Context) {
 	data := v.data
 	fillBackground(cr)
@@ -445,14 +467,15 @@ func (v *View) drawWaterfall(cr *cairo.Context, g geometry, data core.Panorama) 
 			continue
 		}
 
-		value := byte(data.Waterline[i] * core.Frct(255))
-		for k := 0; k < bytesPerPx && k < 3; k++ { // only RGB, no alpha
-			waterline[j+k] = value
-		}
+		r, g, b := waterfallColors.toRGB(data.Waterline[i])
+		waterline[j+0] = byte(b * float64(255))
+		waterline[j+1] = byte(g * float64(255))
+		waterline[j+2] = byte(r * float64(255))
 	}
 	v.waterfall = append(waterline, v.waterfall[:length-stride]...)
 
 	imageSurface, _ := cairo.CreateImageSurfaceForData(v.waterfall, cairo.FORMAT_RGB24, int(r.width()), int(r.height()), stride)
+	defer imageSurface.Close()
 
 	cr.SetSourceSurface(imageSurface, r.left, r.top)
 	cr.Paint()
