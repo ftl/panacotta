@@ -43,6 +43,7 @@ type Controller interface {
 	ResetZoom()
 	FinerDynamicRange()
 	CoarserDynamicRange()
+	ShiftDynamicRange(core.Frct)
 }
 
 // View of the FFT.

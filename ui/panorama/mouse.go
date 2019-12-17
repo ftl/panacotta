@@ -2,20 +2,50 @@ package panorama
 
 import (
 	"log"
-	"math"
+	"math/cmplx"
 
 	"github.com/gotk3/gotk3/gdk"
 	"github.com/gotk3/gotk3/gtk"
+
+	"github.com/ftl/panacotta/core"
 )
 
 type mouse struct {
 	buttonPressed  bool
 	doublePressed  bool
 	x, y           float64
+	lastX, lastY   float64
 	startX, startY float64
 	button         uint
 	dragThreshold  float64
-	dragging       bool
+}
+
+func (m mouse) moveX() float64 {
+	return m.lastX - m.x
+}
+
+func (m mouse) moveY() float64 {
+	return m.lastY - m.y
+}
+
+func (m mouse) moveDistance() float64 {
+	return cmplx.Abs(complex(m.moveX(), m.moveY()))
+}
+
+func (m mouse) dragX() float64 {
+	return m.startX - m.x
+}
+
+func (m mouse) dragY() float64 {
+	return m.startY - m.y
+}
+
+func (m mouse) dragDistance() float64 {
+	return cmplx.Abs(complex(m.dragX(), m.dragY()))
+}
+
+func (m mouse) dragging() bool {
+	return m.buttonPressed && m.dragDistance() > m.dragThreshold
 }
 
 func (v *View) connectMouse() {
@@ -51,7 +81,7 @@ func (v *View) onButtonPress(da *gtk.DrawingArea, e *gdk.Event) {
 func (v *View) onButtonRelease(da *gtk.DrawingArea, e *gdk.Event) {
 	if v.mouse.doublePressed {
 		v.onDoubleClick(v.mouse.button)
-	} else if v.mouse.dragging {
+	} else if v.mouse.dragging() {
 		log.Printf("drag end")
 	} else if v.mouse.buttonPressed {
 		v.onClick(v.mouse.button)
@@ -61,7 +91,6 @@ func (v *View) onButtonRelease(da *gtk.DrawingArea, e *gdk.Event) {
 	v.mouse.doublePressed = false
 	v.mouse.startX, v.mouse.startY = 0, 0
 	v.mouse.button = 0
-	v.mouse.dragging = false
 }
 
 func (v *View) onClick(button uint) {
@@ -109,12 +138,20 @@ func (v *View) onDoubleLeftClick(x, y float64) {
 
 func (v *View) onPointerMotion(da *gtk.DrawingArea, e *gdk.Event) {
 	motionEvent := gdk.EventMotionNewFromEvent(e)
+	v.mouse.lastX, v.mouse.lastY = v.mouse.x, v.mouse.y
 	v.mouse.x, v.mouse.y = motionEvent.MotionVal()
-	if v.mouse.buttonPressed && math.Abs(v.mouse.startX-v.mouse.x) > v.mouse.dragThreshold {
-		v.mouse.dragging = true
-	}
 
-	if v.mouse.dragging {
+	if v.mouse.dragging() {
+		v.onDrag()
+	}
+}
+
+func (v *View) onDrag() {
+	pointer := point{v.mouse.startX, v.mouse.startY}
+	if v.geometry.dbScale.contains(pointer) {
+		shift := -v.mouse.moveY() / v.geometry.dbScale.height()
+		v.controller.ShiftDynamicRange(core.Frct(shift))
+	} else {
 		log.Printf("dragging x %f y %f", v.mouse.x, v.mouse.y)
 	}
 }

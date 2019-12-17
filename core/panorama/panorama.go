@@ -234,16 +234,20 @@ func (p *Panorama) ResetZoom() {
 }
 
 func (p *Panorama) FinerDynamicRange() {
-	log.Print("finer")
 	Δdb := p.dbRange.Width() * 0.05
 	p.dbRange.From += Δdb
 	p.dbRange.To -= Δdb
 }
 
 func (p *Panorama) CoarserDynamicRange() {
-	log.Print("coarser")
 	Δdb := p.dbRange.Width() * 0.05
 	p.dbRange.From -= Δdb
+	p.dbRange.To += Δdb
+}
+
+func (p *Panorama) ShiftDynamicRange(ratio core.Frct) {
+	Δdb := p.dbRange.Width() * core.DB(ratio)
+	p.dbRange.From += Δdb
 	p.dbRange.To += Δdb
 }
 

@@ -69,6 +69,7 @@ type panoramaType interface {
 	ResetZoom()
 	FinerDynamicRange()
 	CoarserDynamicRange()
+	ShiftDynamicRange(core.Frct)
 }
 
 func (m *mainLoop) Run(stop chan struct{}) {
@@ -196,6 +197,12 @@ func (m *mainLoop) FinerDynamicRange() {
 func (m *mainLoop) CoarserDynamicRange() {
 	m.q(func() {
 		m.panorama.CoarserDynamicRange()
+	})
+}
+
+func (m *mainLoop) ShiftDynamicRange(ratio core.Frct) {
+	m.q(func() {
+		m.panorama.ShiftDynamicRange(ratio)
 	})
 }
 
