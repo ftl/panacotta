@@ -60,7 +60,7 @@ func New(width core.Px, frequencyRange core.FrequencyRange, vfoFrequency core.Fr
 	result := Panorama{
 		width:          width,
 		frequencyRange: frequencyRange,
-		dbRange:        core.DBRange{From: -135, To: 10},
+		dbRange:        core.DBRange{From: -105, To: 10},
 		resolution: map[ViewMode]core.HzPerPx{
 			ViewFixed:    calcResolution(frequencyRange, width),
 			ViewCentered: defaultCenteredResolution,
@@ -428,10 +428,20 @@ func (p Panorama) peaks() []core.PeakMark {
 
 func (p Panorama) waterline(spectrum []core.FPoint) []core.Frct {
 	length := int(p.width)
+	binWidth := float64(length) / float64(len(spectrum))
 	result := make([]core.Frct, length)
 	for _, point := range spectrum {
-		index := int(math.Min(float64(length-1)*float64(point.X), float64(length-1)))
-		result[index] = core.Frct(math.Max(float64(result[index]), float64(point.Y)))
+		center := float64(length-1) * float64(point.X)
+		binFrom := center - binWidth/2
+		binTo := center + binWidth/2
+
+		for i := int(binFrom); i <= int(binTo+1); i++ {
+			if 0 > i || i >= len(result) {
+				continue
+			}
+
+			result[i] = core.Frct(math.Max(float64(result[i]), float64(point.Y)))
+		}
 	}
 	return result
 }

@@ -2,7 +2,6 @@ package panorama
 
 import (
 	"fmt"
-	"log"
 	"math"
 
 	"github.com/gotk3/gotk3/cairo"
@@ -76,8 +75,8 @@ func (v *View) onDraw(da *gtk.DrawingArea, cr *cairo.Context) {
 	g.frequencyScale = drawFrequencyScale(cr, g, data)
 	g.modeIndicator = drawModeIndicator(cr, g, data)
 	g.fft = drawFFT(cr, g, data)
-	g.peaks = drawPeaks(cr, g, data)
 	g.waterfall = v.drawWaterfall(cr, g, data)
+	g.peaks = drawPeaks(cr, g, data)
 	g.vfo = drawVFO(cr, g, data)
 
 	v.geometry = g
@@ -303,7 +302,7 @@ func drawVFO(cr *cairo.Context, g geometry, data core.Panorama) rect {
 
 	r := rect{
 		top:    g.fft.top,
-		bottom: g.fft.bottom,
+		bottom: g.waterfall.bottom,
 	}
 
 	freqX := g.fft.toX(data.VFOLine)
@@ -368,17 +367,29 @@ func drawPeaks(cr *cairo.Context, g geometry, data core.Panorama) []rect {
 			left:   fromX,
 			top:    g.fft.top,
 			right:  toX,
-			bottom: g.fft.bottom,
+			bottom: g.waterfall.bottom,
 		}
 		mouseOver := r.contains(g.mouse)
+
+		cr.SetFontSize(12.0)
+		markText := "\u25BC"
+		markExtents := cr.TextExtents(markText)
+		markTextY := y
+
+		cr.SetSourceRGB(0.3, 1, 0.8)
+		cr.MoveTo(maxX-markExtents.Width/2, markTextY)
+		cr.ShowText(markText)
 
 		cr.SetFontSize(10.0)
 		freqText := fmt.Sprintf("%.2fkHz", peak.MaxFrequency/1000)
 		freqExtents := cr.TextExtents(freqText)
-		leftSide := maxX+padding+freqExtents.Width < g.fft.right
-
-		sMeterText := core.SUnit(peak.ValueDB).String()
+		sMeterText := fmt.Sprintf("%.00f | %s", float64(peak.ToX-peak.FromX)*g.fft.width(), core.SUnit(peak.ValueDB).String())
 		sMeterExtents := cr.TextExtents(sMeterText)
+
+		freqTextY := markTextY - 2*dim.spacing - markExtents.Height - sMeterExtents.Height
+		sMeterTextY := freqTextY + dim.spacing + sMeterExtents.Height
+
+		leftSide := maxX+padding+freqExtents.Width < g.fft.right
 
 		if mouseOver {
 			cr.SetSourceRGBA(0.3, 1, 0.8, 0.4)
@@ -387,33 +398,20 @@ func drawPeaks(cr *cairo.Context, g geometry, data core.Panorama) []rect {
 
 			cr.SetSourceRGB(0.3, 1, 0.8)
 			if leftSide {
-				cr.MoveTo(maxX+padding, y+padding)
+				cr.MoveTo(maxX+padding, freqTextY)
 			} else {
-				cr.MoveTo(maxX-padding-freqExtents.Width, y+padding)
+				cr.MoveTo(maxX-padding-freqExtents.Width, freqTextY)
 			}
 			cr.ShowText(freqText)
 			if leftSide {
-				cr.MoveTo(maxX+padding, y+freqExtents.Height+2*padding)
+				cr.MoveTo(maxX+padding, sMeterTextY)
 			} else {
-				cr.MoveTo(maxX-padding-sMeterExtents.Width, y+freqExtents.Height+2*padding)
+				cr.MoveTo(maxX-padding-sMeterExtents.Width, sMeterTextY)
 			}
 			cr.ShowText(sMeterText)
 		} else {
 			cr.SetSourceRGBA(0.3, 1, 0.8, 0.2)
 		}
-
-		cr.SetSourceRGBA(0.3, 1, 0.8, 0.4)
-		cr.SetLineWidth(1.5)
-		cr.MoveTo(maxX, y) // r.top
-		cr.LineTo(maxX, r.bottom)
-		cr.Stroke()
-
-		cr.SetSourceRGB(0.3, 1, 0.8)
-		cr.SetFontSize(12.0)
-		markText := "\u25BC"
-		markExtents := cr.TextExtents(markText)
-		cr.MoveTo(maxX-markExtents.Width/2, y)
-		cr.ShowText(markText)
 
 		result[i] = r
 	}
@@ -435,7 +433,6 @@ func (v *View) drawWaterfall(cr *cairo.Context, g geometry, data core.Panorama) 
 	stride := cairo.FormatStrideForWidth(cairo.FORMAT_RGB24, int(r.width()))
 	bytesPerPx := stride / int(r.width())
 	length := int(stride * int(r.height()))
-	log.Printf("draw waterfall: %d, %d, %d", len(data.Waterline), len(data.Waterline)*bytesPerPx, stride)
 
 	if v.waterfall == nil || len(v.waterfall) != length {
 		v.waterfall = make([]byte, length)
@@ -444,11 +441,12 @@ func (v *View) drawWaterfall(cr *cairo.Context, g geometry, data core.Panorama) 
 	waterline := make([]byte, stride)
 	for i := range data.Waterline {
 		j := i * bytesPerPx
-		if j >= len(waterline) {
-			break
+		if 0 > j || j >= len(waterline) {
+			continue
 		}
+
 		value := byte(data.Waterline[i] * core.Frct(255))
-		for k := 0; k < bytesPerPx; k++ {
+		for k := 0; k < bytesPerPx && k < 3; k++ { // only RGB, no alpha
 			waterline[j+k] = value
 		}
 	}
