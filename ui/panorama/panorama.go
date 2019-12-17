@@ -48,8 +48,9 @@ type Controller interface {
 
 // View of the FFT.
 type View struct {
-	view       *gtk.DrawingArea
-	controller Controller
+	view            *gtk.DrawingArea
+	controller      Controller
+	sizeInitialized bool
 
 	data      core.Panorama
 	geometry  geometry
@@ -76,6 +77,10 @@ func (v *View) run() {
 }
 
 func (v *View) onResize(widget *gtk.DrawingArea, event *gdk.Event) {
+	if !v.sizeInitialized {
+		return
+	}
+
 	e := gdk.EventConfigureNewFromEvent(event)
 	v.controller.SetPanoramaSize(core.Px(e.Width())-core.Px(v.geometry.fft.left), core.Px(e.Height())-core.Px(v.geometry.fft.top))
 }

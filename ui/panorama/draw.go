@@ -102,6 +102,10 @@ func (v *View) onDraw(da *gtk.DrawingArea, cr *cairo.Context) {
 	g.vfo = drawVFO(cr, g, data)
 
 	v.geometry = g
+	if !v.sizeInitialized {
+		v.sizeInitialized = true
+		v.controller.SetPanoramaSize(core.Px(g.fft.width()), core.Px(g.fft.height()))
+	}
 }
 
 func fillBackground(cr *cairo.Context) {
