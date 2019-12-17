@@ -64,8 +64,8 @@ func (c *Controller) Startup() {
 	} else {
 		d = dsp.New(sampleRate, core.Frequency(ifCenter), core.Frequency(-sampleRate/4))
 		p = panorama.New(0, core.FrequencyRange{}, 0)
-
 	}
+	p.SetDynamicRange(c.config.DynamicRange)
 	go d.Run(c.stop)
 
 	c.mainLoop = newMainLoop(samplesInput, d, vfo, p, c.config.FFTPerSecond)

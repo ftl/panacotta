@@ -113,6 +113,16 @@ func (r DBRange) String() string {
 	return fmt.Sprintf("[%v,%v]", r.From, r.To)
 }
 
+func (r DBRange) Normalized() DBRange {
+	if r.From > r.To {
+		return DBRange{
+			From: r.To,
+			To:   r.From,
+		}
+	}
+	return r
+}
+
 // Width of the dB range.
 func (r DBRange) Width() DB {
 	return DB(math.Abs(float64(r.To - r.From)))
@@ -139,7 +149,17 @@ type Configuration struct {
 	Testmode            bool
 	VFOHost             string
 	FFTPerSecond        int
+	DynamicRange        DBRange
 }
+
+// ViewMode of the panorama.
+type ViewMode int
+
+// All view modes.
+const (
+	ViewFixed ViewMode = iota
+	ViewCentered
+)
 
 // SamplesInput interface.
 type SamplesInput interface {

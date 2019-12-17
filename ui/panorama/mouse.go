@@ -147,8 +147,11 @@ func (v *View) onPointerMotion(da *gtk.DrawingArea, e *gdk.Event) {
 func (v *View) onDrag() {
 	pointer := point{v.mouse.startX, v.mouse.startY}
 	if v.geometry.dbScale.contains(pointer) {
-		shift := -v.mouse.moveY() / v.geometry.dbScale.height()
-		v.controller.ShiftDynamicRange(core.Frct(shift))
+		ratio := -v.mouse.moveY() / v.geometry.dbScale.height()
+		v.controller.ShiftDynamicRange(core.Frct(ratio))
+	} else if v.geometry.fft.contains(pointer) || v.geometry.waterfall.contains(pointer) {
+		ratio := v.mouse.moveX() / v.geometry.fft.width()
+		v.controller.ShiftFrequencyRange(core.Frct(ratio))
 	} else {
 		log.Printf("dragging x %f y %f", v.mouse.x, v.mouse.y)
 	}

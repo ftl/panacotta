@@ -11,6 +11,8 @@ const (
 	frequencyCorrection cfg.Key = "panacotta.frequencyCorrection"
 	vfoHost             cfg.Key = "panacotta.vfoHost"
 	fftPerSecond        cfg.Key = "panacotta.fftPerSecond"
+	dynamicRangeFrom    cfg.Key = "panacotta.dynamicRange.from"
+	dynamicRangeTo      cfg.Key = "panacotta.dynamicRange.to"
 )
 
 func Load() (core.Configuration, error) {
@@ -24,6 +26,10 @@ func Load() (core.Configuration, error) {
 		FrequencyCorrection: int(configuration.Get(frequencyCorrection, 0.0).(float64)),
 		VFOHost:             configuration.Get(vfoHost, "").(string),
 		FFTPerSecond:        int(configuration.Get(fftPerSecond, 25.0).(float64)),
+		DynamicRange: core.DBRange{
+			From: core.DB(configuration.Get(dynamicRangeFrom, -105.0).(float64)),
+			To:   core.DB(configuration.Get(dynamicRangeTo, 15.0).(float64)),
+		}.Normalized(),
 	}
 
 	return result, nil

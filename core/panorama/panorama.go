@@ -17,8 +17,8 @@ type Panorama struct {
 	vfo            core.VFO
 	band           core.Band
 
-	resolution    map[ViewMode]core.HzPerPx
-	viewMode      ViewMode
+	resolution    map[core.ViewMode]core.HzPerPx
+	viewMode      core.ViewMode
 	fullRangeMode bool
 	margin        float64
 
@@ -41,15 +41,6 @@ func toPeakKey(f core.Frequency) peakKey {
 	return peakKey(f / 100.0)
 }
 
-// ViewMode of the panorama.
-type ViewMode int
-
-// All view modes.
-const (
-	ViewFixed ViewMode = iota
-	ViewCentered
-)
-
 const (
 	defaultFixedResolution    = core.HzPerPx(100)
 	defaultCenteredResolution = core.HzPerPx(25)
@@ -61,11 +52,11 @@ func New(width core.Px, frequencyRange core.FrequencyRange, vfoFrequency core.Fr
 		width:          width,
 		frequencyRange: frequencyRange,
 		dbRange:        core.DBRange{From: -105, To: 10},
-		resolution: map[ViewMode]core.HzPerPx{
-			ViewFixed:    calcResolution(frequencyRange, width),
-			ViewCentered: defaultCenteredResolution,
+		resolution: map[core.ViewMode]core.HzPerPx{
+			core.ViewFixed:    calcResolution(frequencyRange, width),
+			core.ViewCentered: defaultCenteredResolution,
 		},
-		viewMode:    ViewFixed,
+		viewMode:    core.ViewFixed,
 		margin:      0.02,
 		peakBuffer:  make(map[peakKey]peak),
 		peakTimeout: 5 * time.Second, // TODO make this configurable
@@ -94,7 +85,7 @@ func (p *Panorama) updateFrequencyRange() {
 	}
 
 	var lowerRatio, upperRatio core.Frequency
-	if p.viewMode == ViewFixed && p.frequencyRange.Contains(p.vfo.Frequency) {
+	if p.viewMode == core.ViewFixed && p.frequencyRange.Contains(p.vfo.Frequency) {
 		lowerRatio = (p.vfo.Frequency - p.frequencyRange.From) / p.frequencyRange.Width()
 		lowerRatio = core.Frequency(math.Max(p.margin, math.Min(float64(lowerRatio), 1-p.margin)))
 		upperRatio = 1.0 - lowerRatio
@@ -115,7 +106,7 @@ func (p *Panorama) setupFrequencyRange() {
 		return
 	}
 
-	if p.viewMode == ViewFixed {
+	if p.viewMode == core.ViewFixed {
 		p.frequencyRange.From = p.band.From - 1000
 		p.frequencyRange.To = p.band.To + 1000
 	} else {
@@ -188,12 +179,16 @@ func (p *Panorama) SetFFT(fft core.FFT) {
 
 // ToggleViewMode switches to the other view mode.
 func (p *Panorama) ToggleViewMode() {
-	if p.viewMode == ViewFixed {
-		p.viewMode = ViewCentered
+	if p.viewMode == core.ViewFixed {
+		p.viewMode = core.ViewCentered
 	} else {
-		p.viewMode = ViewFixed
+		p.viewMode = core.ViewFixed
 	}
 	p.updateFrequencyRange()
+}
+
+func (p *Panorama) ViewMode() core.ViewMode {
+	return p.viewMode
 }
 
 // ZoomIn one step
@@ -217,7 +212,7 @@ func (p *Panorama) ZoomToBand() {
 }
 
 func (p *Panorama) zoomTo(frequencyRange core.FrequencyRange) {
-	p.viewMode = ViewFixed
+	p.viewMode = core.ViewFixed
 	p.frequencyRange = frequencyRange
 	p.resolution[p.viewMode] = calcResolution(p.frequencyRange, p.width)
 }
@@ -225,9 +220,9 @@ func (p *Panorama) zoomTo(frequencyRange core.FrequencyRange) {
 // ResetZoom to the default of the current view mode
 func (p *Panorama) ResetZoom() {
 	switch p.viewMode {
-	case ViewFixed:
+	case core.ViewFixed:
 		p.resolution[p.viewMode] = defaultFixedResolution
-	case ViewCentered:
+	case core.ViewCentered:
 		p.resolution[p.viewMode] = defaultCenteredResolution
 	}
 	p.updateFrequencyRange()
@@ -251,9 +246,16 @@ func (p *Panorama) ShiftDynamicRange(ratio core.Frct) {
 	p.dbRange.To += Δdb
 }
 
-// Drag the panorama horizontally by a certain amount of Hz.
-func (p *Panorama) Drag(Δf core.Frequency) {
-	p.frequencyRange.Shift(Δf)
+func (p *Panorama) SetDynamicRange(dbRange core.DBRange) {
+	p.dbRange = dbRange
+}
+
+// ShiftFrequencyRange shifts the panorama horizontally by the given ratio of the total width.
+func (p *Panorama) ShiftFrequencyRange(ratio core.Frct) {
+	Δf := p.frequencyRange.Width() * core.Frequency(ratio)
+	if p.viewMode == core.ViewFixed {
+		p.frequencyRange.Shift(Δf)
+	}
 }
 
 // Data to draw the current panorama.

@@ -63,6 +63,7 @@ type panoramaType interface {
 	SetVFO(core.VFO)
 	Data() core.Panorama
 	ToggleViewMode()
+	ViewMode() core.ViewMode
 	ZoomIn()
 	ZoomOut()
 	ZoomToBand()
@@ -70,6 +71,7 @@ type panoramaType interface {
 	FinerDynamicRange()
 	CoarserDynamicRange()
 	ShiftDynamicRange(core.Frct)
+	ShiftFrequencyRange(core.Frct)
 }
 
 func (m *mainLoop) Run(stop chan struct{}) {
@@ -203,6 +205,18 @@ func (m *mainLoop) CoarserDynamicRange() {
 func (m *mainLoop) ShiftDynamicRange(ratio core.Frct) {
 	m.q(func() {
 		m.panorama.ShiftDynamicRange(ratio)
+	})
+}
+
+func (m *mainLoop) ShiftFrequencyRange(ratio core.Frct) {
+	m.q(func() {
+		switch m.panorama.ViewMode() {
+		case core.ViewFixed:
+			m.panorama.ShiftFrequencyRange(ratio)
+		case core.ViewCentered:
+			Δf := m.panorama.FrequencyRange().Width() * core.Frequency(ratio)
+			m.vfo.TuneBy(Δf)
+		}
 	})
 }
 

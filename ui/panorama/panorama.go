@@ -44,6 +44,7 @@ type Controller interface {
 	FinerDynamicRange()
 	CoarserDynamicRange()
 	ShiftDynamicRange(core.Frct)
+	ShiftFrequencyRange(core.Frct)
 }
 
 // View of the FFT.
