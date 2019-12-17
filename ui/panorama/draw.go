@@ -2,11 +2,13 @@ package panorama
 
 import (
 	"fmt"
+	"log"
 	"math"
 
-	"github.com/ftl/panacotta/core"
 	"github.com/gotk3/gotk3/cairo"
 	"github.com/gotk3/gotk3/gtk"
+
+	"github.com/ftl/panacotta/core"
 )
 
 type rect struct {
@@ -47,6 +49,7 @@ type geometry struct {
 	fft            rect
 	vfo            rect
 	peaks          []rect
+	waterfall      rect
 }
 
 var dim = struct {
@@ -54,11 +57,13 @@ var dim = struct {
 	modeIndicatorHeight    float64
 	frequencyScaleFontSize float64
 	dbScaleFontSize        float64
+	fftWaterfallRatio      float64
 }{
 	spacing:                2.0,
 	modeIndicatorHeight:    5.0,
 	frequencyScaleFontSize: 10.0,
 	dbScaleFontSize:        10.0,
+	fftWaterfallRatio:      0.5,
 }
 
 func (v *View) onDraw(da *gtk.DrawingArea, cr *cairo.Context) {
@@ -72,6 +77,7 @@ func (v *View) onDraw(da *gtk.DrawingArea, cr *cairo.Context) {
 	g.modeIndicator = drawModeIndicator(cr, g, data)
 	g.fft = drawFFT(cr, g, data)
 	g.peaks = drawPeaks(cr, g, data)
+	g.waterfall = v.drawWaterfall(cr, g, data)
 	g.vfo = drawVFO(cr, g, data)
 
 	v.geometry = g
@@ -105,7 +111,7 @@ func (v *View) prepareGeometry(da *gtk.DrawingArea, cr *cairo.Context) geometry 
 	result.fft = rect{
 		top:    result.modeIndicator.bottom,
 		left:   result.dbScale.right,
-		bottom: result.widget.bottom,
+		bottom: result.modeIndicator.bottom + (result.widget.bottom-result.modeIndicator.bottom)*(1.0-dim.fftWaterfallRatio),
 		right:  result.widget.right,
 	}
 
@@ -205,7 +211,7 @@ func drawFrequencyScale(cr *cairo.Context, g geometry, data core.Panorama) rect 
 			continue
 		}
 		cr.MoveTo(x, r.top)
-		cr.LineTo(x, g.widget.bottom)
+		cr.LineTo(x, g.fft.bottom)
 		cr.Stroke()
 
 		freqText := fmt.Sprintf("%.0fk", float64(mark.Frequency)/1000.0)
@@ -413,4 +419,45 @@ func drawPeaks(cr *cairo.Context, g geometry, data core.Panorama) []rect {
 	}
 
 	return result
+}
+
+func (v *View) drawWaterfall(cr *cairo.Context, g geometry, data core.Panorama) rect {
+	cr.Save()
+	defer cr.Restore()
+
+	r := rect{
+		top:    g.fft.bottom,
+		bottom: g.widget.bottom,
+		left:   g.fft.left,
+		right:  g.fft.right,
+	}
+
+	stride := cairo.FormatStrideForWidth(cairo.FORMAT_RGB24, int(r.width()))
+	bytesPerPx := stride / int(r.width())
+	length := int(stride * int(r.height()))
+	log.Printf("draw waterfall: %d, %d, %d", len(data.Waterline), len(data.Waterline)*bytesPerPx, stride)
+
+	if v.waterfall == nil || len(v.waterfall) != length {
+		v.waterfall = make([]byte, length)
+	}
+
+	waterline := make([]byte, stride)
+	for i := range data.Waterline {
+		j := i * bytesPerPx
+		if j >= len(waterline) {
+			break
+		}
+		value := byte(data.Waterline[i] * core.Frct(255))
+		for k := 0; k < bytesPerPx; k++ {
+			waterline[j+k] = value
+		}
+	}
+	v.waterfall = append(waterline, v.waterfall[:length-stride]...)
+
+	imageSurface, _ := cairo.CreateImageSurfaceForData(v.waterfall, cairo.FORMAT_RGB24, int(r.width()), int(r.height()), stride)
+
+	cr.SetSourceSurface(imageSurface, r.left, r.top)
+	cr.Paint()
+
+	return r
 }

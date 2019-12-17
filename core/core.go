@@ -210,6 +210,7 @@ type Panorama struct {
 	Spectrum          []FPoint
 	PeakThresholdLine Frct
 	Peaks             []PeakMark
+	Waterline         []Frct
 }
 
 // ToPx converts the given frequency in Hz to Px within the panorama.

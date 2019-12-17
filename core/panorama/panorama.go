@@ -251,6 +251,7 @@ func (p Panorama) data() core.Panorama {
 		return core.Panorama{}
 	}
 
+	spectrum := p.spectrum()
 	result := core.Panorama{
 		FrequencyRange: p.frequencyRange,
 		VFO:            p.vfo,
@@ -264,9 +265,10 @@ func (p Panorama) data() core.Panorama {
 
 		FrequencyScale:    p.frequencyScale(),
 		DBScale:           p.dbScale(),
-		Spectrum:          p.spectrum(),
+		Spectrum:          spectrum,
 		PeakThresholdLine: p.dbRange.ToFrct(core.DB(p.fft.PeakThreshold)),
 		Peaks:             p.peaks(),
+		Waterline:         p.waterline(spectrum),
 	}
 
 	return result
@@ -421,5 +423,15 @@ func (p Panorama) peaks() []core.PeakMark {
 		}
 	}
 
+	return result
+}
+
+func (p Panorama) waterline(spectrum []core.FPoint) []core.Frct {
+	length := int(p.width)
+	result := make([]core.Frct, length)
+	for _, point := range spectrum {
+		index := int(math.Min(float64(length-1)*float64(point.X), float64(length-1)))
+		result[index] = core.Frct(math.Max(float64(result[index]), float64(point.Y)))
+	}
 	return result
 }

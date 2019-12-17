@@ -2,6 +2,8 @@ module github.com/ftl/panacotta
 
 go 1.13
 
+replace github.com/gotk3/gotk3 => github.com/ftl/gotk3 v0.0.0-20191217073856-2af006b0b1fc
+
 require (
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/ftl/gmtry v0.0.0-20191212144729-f69dbd03db31

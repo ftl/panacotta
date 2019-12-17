@@ -48,8 +48,9 @@ type View struct {
 	view       *gtk.DrawingArea
 	controller Controller
 
-	data     core.Panorama
-	geometry geometry
+	data      core.Panorama
+	geometry  geometry
+	waterfall []byte
 
 	mouse    mouse
 	keyboard keyboard
