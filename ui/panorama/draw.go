@@ -80,11 +80,11 @@ func (c colorMap) toRGB(f core.Frct) (r, g, b float64) {
 }
 
 // var waterfallColors = colorMap{
-// 	{0, 0, 0}, {0, 0, 1},
+// 	{0, 0, 0}, {1, 1, 1},
 // }
 
 var waterfallColors = colorMap{
-	{0, 0, 0}, {0, 0, 1}, {0, 1, 1}, {1, 1, 1}, {1, 1, 0}, {1, 0, 0},
+	{0, 0, 0}, {0, 0, 1}, {0, 1, 1}, {1, 1, 0}, {1, 0, 0}, {1, 1, 1},
 }
 
 func (v *View) onDraw(da *gtk.DrawingArea, cr *cairo.Context) {
