@@ -14,7 +14,7 @@ import (
 	"github.com/ftl/panacotta/core"
 )
 
-const smoothingLength = 5 // 10 // TODO make configurable
+const smoothingDepth = 5 // 10 // TODO make configurable
 type smoother interface {
 	Put([]float64) []float64
 }
@@ -28,7 +28,7 @@ func New(sampleRate int, ifFrequency, rxOffset core.Frequency) *DSP {
 		ifCenter:    ifFrequency,
 		rxCenter:    ifFrequency + rxOffset,
 		filterCoeff: firLowpass(27, 1.0/4.8),
-		smoother:    newAverager(smoothingLength, 0),
+		smoother:    newAverager(smoothingDepth, 0),
 	}
 
 	return result
@@ -125,7 +125,7 @@ func (d *DSP) doWork(work work) {
 		needReconfiguration = true
 	}
 	if oldOutputBlockSize != d.outputBlockSize {
-		d.smoother = newAverager(smoothingLength, d.outputBlockSize)
+		d.smoother = newAverager(smoothingDepth, d.outputBlockSize)
 
 		fftWindow := window.Hamming(d.outputBlockSize)
 		d.fftWindow = make([]complex128, len(fftWindow))
@@ -138,33 +138,22 @@ func (d *DSP) doWork(work work) {
 		log.Printf("reconfiguration: %d %d %f %f %f", d.decimation, d.outputBlockSize, d.fftRange.Width(), d.Δf, toRate(d.Δf, d.sampleRate))
 	}
 
-	var outputSamples []complex128
-	if d.decimation == 1 {
-		outputSamples = shift(work.samples, toRate(d.Δf, d.sampleRate))
-	} else {
-		outputSamples = fftShiftAndDecimate(work.samples, toRate(d.Δf, d.sampleRate), d.decimation, d.filterWindow)
+	spectrum, mean := fftSlice(work.samples, d.outputBlockSize, toRate(d.Δf, d.sampleRate), d.filterWindow)
+	if smoothingDepth > 1 {
+		spectrum = d.smoother.Put(spectrum)
 	}
-
-	for i := range outputSamples {
-		outputSamples[i] *= d.fftWindow[i]
-	}
-
-	fft, mean := fft(outputSamples)
-	if smoothingLength > 1 {
-		fft = d.smoother.Put(fft)
-	}
-	peaks, threshold := peaks(fft, mean)
+	peaks, threshold := peaks(spectrum, mean)
 
 	center := d.fftRange.Center()
 	sideband := core.Frequency(d.sampleRate / (2 * d.decimation))
 	if d.fullRangeMode {
-		fft = padZero(fft, d.inputBlockSize)
+		spectrum = padZero(spectrum, d.inputBlockSize)
 		sideband = core.Frequency(d.sampleRate / 2)
 	}
 
 	select {
 	case d.fft <- core.FFT{
-		Data:          fft,
+		Data:          spectrum,
 		Range:         core.FrequencyRange{From: center - sideband, To: center + sideband},
 		Mean:          mean,
 		PeakThreshold: threshold,
@@ -371,6 +360,34 @@ func fft(samples []complex128) ([]float64, float64) {
 
 func fftValue2dBm(fftValue complex128, blockSize int) float64 {
 	return 10.0 * math.Log10(20.0*(math.Pow(real(fftValue), 2)+math.Pow(imag(fftValue), 2))/math.Pow(float64(blockSize), 2))
+}
+
+func fftSlice(samples []complex128, sliceLength int, sliceCenterOffsetRate float64, filterWindow []complex128) ([]float64, float64) {
+	frequencyDomain := dsp.FFT(samples)
+	blockSize := len(frequencyDomain)
+	blockCenter := blockSize / 2
+	shiftOffset := int(sliceCenterOffsetRate * float64(blockSize))
+	resultOffset := (blockSize - sliceLength) / 2
+	result := make([]float64, sliceLength)
+	mean := 0.0
+	for i := range frequencyDomain {
+		shiftedIndex := (blockSize + shiftOffset + i) % blockSize
+		var resultIndex int
+		if shiftedIndex < blockCenter {
+			resultIndex = shiftedIndex + blockCenter
+		} else {
+			resultIndex = shiftedIndex - blockCenter
+		}
+		resultIndex -= resultOffset
+
+		if 0 <= resultIndex && resultIndex < len(result) {
+			result[resultIndex] = fftValue2dBm(frequencyDomain[i]*filterWindow[shiftedIndex], blockSize)
+			mean += result[resultIndex]
+		}
+	}
+	mean /= float64(sliceLength)
+
+	return result, mean
 }
 
 func peaks(fft []float64, mean float64) ([]core.PeakIndexRange, float64) {
