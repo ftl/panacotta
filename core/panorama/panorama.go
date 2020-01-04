@@ -22,9 +22,10 @@ type Panorama struct {
 	fullRangeMode bool
 	margin        float64
 
-	fft         core.FFT
-	peakBuffer  map[peakKey]peak
-	peakTimeout time.Duration
+	fft             core.FFT
+	peakBuffer      map[peakKey]peak
+	peakTimeout     time.Duration
+	dbRangeAdjusted bool
 }
 
 type peak struct {
@@ -56,10 +57,11 @@ func New(width core.Px, frequencyRange core.FrequencyRange, vfoFrequency core.Fr
 			core.ViewFixed:    calcResolution(frequencyRange, width),
 			core.ViewCentered: defaultCenteredResolution,
 		},
-		viewMode:    core.ViewFixed,
-		margin:      0.02,
-		peakBuffer:  make(map[peakKey]peak),
-		peakTimeout: 5 * time.Second, // TODO make this configurable
+		viewMode:        core.ViewFixed,
+		margin:          0.02,
+		peakBuffer:      make(map[peakKey]peak),
+		peakTimeout:     5 * time.Second, // TODO make this configurable
+		dbRangeAdjusted: true,
 	}
 
 	result.vfo.Frequency = vfoFrequency
@@ -158,6 +160,9 @@ func (p *Panorama) SetVFO(vfo core.VFO) {
 	if !p.band.Contains(vfo.Frequency) {
 		band := core.IARURegion1.ByFrequency(vfo.Frequency)
 		if band.Width() > 0 {
+			if p.band.Width() > 0 {
+				p.dbRangeAdjusted = false
+			}
 			p.band = band
 		}
 	}
@@ -165,6 +170,17 @@ func (p *Panorama) SetVFO(vfo core.VFO) {
 	log.Printf("vfo %v band %v", p.vfo, p.band)
 
 	p.updateFrequencyRange()
+}
+
+func (p *Panorama) adjustDBRange() {
+	if p.dbRangeAdjusted {
+		return
+	}
+
+	dbWidth := p.dbRange.Width()
+	p.dbRange.From = core.DB(p.fft.PeakThreshold) - 0.1*dbWidth
+	p.dbRange.To = p.dbRange.From + dbWidth
+	p.dbRangeAdjusted = true
 }
 
 // VFO frequency in Hz
@@ -175,6 +191,7 @@ func (p Panorama) VFO() (vfo core.VFO, band core.Band) {
 // SetFFT data
 func (p *Panorama) SetFFT(fft core.FFT) {
 	p.fft = fft
+	p.adjustDBRange()
 }
 
 // ToggleViewMode switches to the other view mode.
@@ -266,8 +283,12 @@ func (p Panorama) Data() core.Panorama {
 	return p.data()
 }
 
+func (p Panorama) dataValid() bool {
+	return !(len(p.fft.Data) == 0 || p.fft.Range.To < p.frequencyRange.From || p.fft.Range.From > p.frequencyRange.To)
+}
+
 func (p Panorama) data() core.Panorama {
-	if len(p.fft.Data) == 0 || p.fft.Range.To < p.frequencyRange.From || p.fft.Range.From > p.frequencyRange.To {
+	if !p.dataValid() {
 		return core.Panorama{}
 	}
 
