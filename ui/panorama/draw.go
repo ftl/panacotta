@@ -173,7 +173,7 @@ func drawDBScale(cr *cairo.Context, g geometry, data core.Panorama) rect {
 	cr.SetSourceRGB(1.0, 0.3, 0.3)
 	cr.SetLineWidth(1.0)
 	cr.SetDash([]float64{2, 2}, 0)
-	y := r.toY(data.PeakThresholdLine)
+	y := r.toY(data.PeakThresholdLevel)
 	cr.MoveTo(r.left, y)
 	cr.LineTo(g.widget.right, y)
 	cr.Stroke()
@@ -382,12 +382,13 @@ func drawPeaks(cr *cairo.Context, g geometry, data core.Panorama) []rect {
 	defer cr.Restore()
 
 	padding := 4.0
+	peakWidth := (g.fft.toX(data.VFOFilterTo) - g.fft.toX(data.VFOFilterFrom)) / 3.0
 
 	result := make([]rect, len(data.Peaks))
 	for i, peak := range data.Peaks {
-		fromX := g.fft.toX(peak.FromX)
-		toX := g.fft.toX(peak.ToX)
 		maxX := g.fft.toX(peak.MaxX)
+		fromX := maxX - peakWidth
+		toX := maxX + peakWidth
 		y := g.fft.toY(peak.ValueY)
 		r := rect{
 			left:   fromX,

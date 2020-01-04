@@ -271,7 +271,7 @@ func (p Panorama) data() core.Panorama {
 		return core.Panorama{}
 	}
 
-	spectrum := p.spectrum()
+	spectrum, sigmaEnvelope := p.spectrum()
 	result := core.Panorama{
 		FrequencyRange: p.frequencyRange,
 		VFO:            p.vfo,
@@ -283,12 +283,13 @@ func (p Panorama) data() core.Panorama {
 		VFOFilterTo:    p.frequencyRange.ToFrct(p.vfo.Frequency + p.vfo.FilterWidth/2),
 		VFOSignalLevel: p.signalLevel(),
 
-		FrequencyScale:    p.frequencyScale(),
-		DBScale:           p.dbScale(),
-		Spectrum:          spectrum,
-		PeakThresholdLine: p.dbRange.ToFrct(core.DB(p.fft.PeakThreshold)),
-		Peaks:             p.peaks(),
-		Waterline:         p.waterline(spectrum),
+		FrequencyScale:     p.frequencyScale(),
+		DBScale:            p.dbScale(),
+		Spectrum:           spectrum,
+		SigmaEnvelope:      sigmaEnvelope,
+		PeakThresholdLevel: p.dbRange.ToFrct(core.DB(p.fft.PeakThreshold)),
+		Peaks:              p.peaks(),
+		Waterline:          p.waterline(spectrum),
 	}
 
 	return result
@@ -356,7 +357,7 @@ func (p Panorama) dbScale() []core.DBMark {
 	return dbScale
 }
 
-func (p Panorama) spectrum() []core.FPoint {
+func (p Panorama) spectrum() ([]core.FPoint, []core.FPoint) {
 	fftResolution := p.fft.Resolution()
 	step := int(math.Max(1, math.Floor(float64(len(p.fft.Data))/float64(p.width))))
 	start := int(math.Max(0, math.Floor(float64(p.frequencyRange.From-p.fft.Range.From)/fftResolution)))
@@ -367,21 +368,28 @@ func (p Panorama) spectrum() []core.FPoint {
 	}
 
 	result := make([]core.FPoint, resultLength)
+	sigmaEnvelope := make([]core.FPoint, resultLength)
 	resultIndex := 0
 	for i := start; i <= end; i += step {
 		d := -1000.0
+		t := -1000.0
 		for j := i; j < i+step && j < len(p.fft.Data); j++ {
 			d = math.Max(d, p.fft.Data[j])
+			t = math.Max(t, p.fft.SigmaEnvelope[j])
 		}
 
 		result[resultIndex] = core.FPoint{
 			X: p.frequencyRange.ToFrct(p.fft.Frequency(i)),
 			Y: p.dbRange.ToFrct(core.DB(d)),
 		}
+		sigmaEnvelope[resultIndex] = core.FPoint{
+			X: p.frequencyRange.ToFrct(p.fft.Frequency(i)),
+			Y: p.dbRange.ToFrct(core.DB(t)),
+		}
 		resultIndex++
 	}
 
-	return result
+	return result, sigmaEnvelope
 }
 
 func (p Panorama) peaks() []core.PeakMark {

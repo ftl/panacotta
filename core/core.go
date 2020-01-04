@@ -225,12 +225,13 @@ type Panorama struct {
 	VFOFilterTo    Frct
 	VFOSignalLevel DB
 
-	FrequencyScale    []FrequencyMark
-	DBScale           []DBMark
-	Spectrum          []FPoint
-	PeakThresholdLine Frct
-	Peaks             []PeakMark
-	Waterline         []Frct
+	FrequencyScale     []FrequencyMark
+	DBScale            []DBMark
+	Spectrum           []FPoint
+	PeakThresholdLevel Frct
+	SigmaEnvelope      []FPoint
+	Peaks              []PeakMark
+	Waterline          []Frct
 }
 
 // ToPx converts the given frequency in Hz to Px within the panorama.
@@ -257,6 +258,7 @@ type FFT struct {
 	Range         FrequencyRange
 	Mean          float64
 	PeakThreshold float64
+	SigmaEnvelope []float64
 	Peaks         []PeakIndexRange
 }
 

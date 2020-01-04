@@ -23,11 +23,11 @@ func (p Panorama) fullRangeData() core.Panorama {
 		VFOFilterTo:    frequencyRange.ToFrct(p.vfo.Frequency + p.vfo.FilterWidth/2),
 		VFOSignalLevel: p.signalLevel(),
 
-		FrequencyScale:    p.fullRangeFrequencyScale(),
-		DBScale:           p.dbScale(),
-		Spectrum:          p.fullRangeSpectrum(),
-		PeakThresholdLine: 0.0,
-		Peaks:             []core.PeakMark{},
+		FrequencyScale:     p.fullRangeFrequencyScale(),
+		DBScale:            p.dbScale(),
+		Spectrum:           p.fullRangeSpectrum(),
+		PeakThresholdLevel: 0.0,
+		Peaks:              []core.PeakMark{},
 	}
 
 	return result

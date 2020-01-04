@@ -142,7 +142,8 @@ func (d *DSP) doWork(work work) {
 	if smoothingDepth > 1 {
 		spectrum = d.smoother.Put(spectrum)
 	}
-	peaks, threshold := peaks(spectrum, mean)
+	_, sigmaEnvelope := centeredSlidingWindowAverageAndSigmaEnvelope(spectrum, 9) // TODO windowSize is a config parameter for peak detection, controls sensitivity
+	peaks, threshold := peaks(spectrum, sigmaEnvelope, mean)
 
 	center := d.fftRange.Center()
 	sideband := core.Frequency(d.sampleRate / (2 * d.decimation))
@@ -157,6 +158,7 @@ func (d *DSP) doWork(work work) {
 		Range:         core.FrequencyRange{From: center - sideband, To: center + sideband},
 		Mean:          mean,
 		PeakThreshold: threshold,
+		SigmaEnvelope: sigmaEnvelope,
 		Peaks:         peaks,
 	}:
 	default:
@@ -390,7 +392,7 @@ func fftSlice(samples []complex128, sliceLength int, sliceCenterOffsetRate float
 	return result, mean
 }
 
-func peaks(fft []float64, mean float64) ([]core.PeakIndexRange, float64) {
+func peaks(fft []float64, envelope []float64, mean float64) ([]core.PeakIndexRange, float64) {
 	if len(fft) == 0 {
 		return []core.PeakIndexRange{}, 0
 	}
@@ -401,48 +403,40 @@ func peaks(fft []float64, mean float64) ([]core.PeakIndexRange, float64) {
 	}
 	σ := math.Sqrt(sum / float64(len(fft)))
 
-	threshold := mean + 2*σ
+	threshold := mean + σ
+	Δthreshold := 3.0 // TODO this is a config parameter for peak detection, controls sensitivity
 	startI := 0
 	max := -200.0
 	maxI := 0
-	lastMax := -200.0
-	lastMaxI := 0
 	lastValue := -200.0
-	wasRising := false
+	lastΔ := 0.0
 	wasAbove := false
+	inside := false
 
 	result := make([]core.PeakIndexRange, 0, len(fft)/4)
-	for i, v := range fft {
-		rising := v-lastValue >= 0
-		turn := rising != wasRising
+	for i, v := range envelope {
+		Δ := v - lastValue
 		above := v > threshold
-		if turn && !rising {
-			wasAbove = above
-			if max < lastValue {
-				max = lastValue
-				maxI = i - 1
-			}
-		} else if turn && rising {
-			if wasAbove {
-				peak := core.PeakIndexRange{From: startI, To: i - 1, Max: maxI, Value: max}
-				isClose := (maxI - lastMaxI) < 5 // this threshold value is arbitrary, it should be configurable
-				if isClose && max > lastMax && len(result) > 0 {
-					result[len(result)-1] = peak
-				} else if isClose && max < lastMax {
-					// ignore this peak
-				} else {
-					result = append(result, peak)
-				}
-			}
-			startI = i - 1
-			wasAbove = false
-			lastMax = max
-			lastMaxI = maxI
-			max = v
+
+		if inside && (fft[i] > max) {
+			max = fft[i]
 			maxI = i
 		}
+
+		if above && !inside && (Δ > Δthreshold) {
+			inside = true
+			startI = i - 1
+			max = fft[i]
+			maxI = i
+		} else if inside && (((lastΔ < -Δthreshold) && (Δ > -Δthreshold)) || (wasAbove && !above)) {
+			peak := core.PeakIndexRange{From: startI, To: i - 1, Max: maxI, Value: max}
+			result = append(result, peak)
+			inside = false
+		}
+
 		lastValue = v
-		wasRising = rising
+		lastΔ = Δ
+		wasAbove = above
 	}
 
 	return result, threshold

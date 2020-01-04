@@ -114,3 +114,35 @@ func (m *slidingMax) Put(v float64) int {
 	m.index++
 	return m.maxIndex
 }
+
+func centeredSlidingWindowAverageAndSigmaEnvelope(values []float64, windowSize int) ([]float64, []float64) {
+	if windowSize%2 == 0 {
+		panic("window size must be odd")
+	}
+	loadingCount := windowSize / 2
+	var buffer float64
+	average := make([]float64, len(values))
+	sigmaEnvelope := make([]float64, len(values))
+	for i := 0; i < len(values)+loadingCount; i++ {
+		if i < len(values) {
+			buffer += values[i]
+		}
+		if i > windowSize {
+			buffer -= values[i-windowSize]
+		}
+		if i <= loadingCount {
+			continue
+		}
+
+		mean := buffer / float64(windowSize)
+		sigmaSum := 0.0
+		for j := i - windowSize + 1; j <= i; j++ {
+			if 0 <= j && j < len(values) {
+				sigmaSum += math.Pow(values[j]-mean, 2)
+			}
+		}
+		average[i-loadingCount] = mean
+		sigmaEnvelope[i-loadingCount] = mean + math.Sqrt(sigmaSum/float64(windowSize))
+	}
+	return average, sigmaEnvelope
+}
