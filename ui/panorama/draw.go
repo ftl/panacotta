@@ -410,7 +410,7 @@ func drawPeaks(cr *cairo.Context, g geometry, data core.Panorama) []rect {
 		cr.SetFontSize(10.0)
 		freqText := fmt.Sprintf("%.2fkHz", peak.MaxFrequency/1000)
 		freqExtents := cr.TextExtents(freqText)
-		sMeterText := fmt.Sprintf("%.00f | %s", float64(peak.ToX-peak.FromX)*g.fft.width(), core.SUnit(peak.ValueDB).String())
+		sMeterText := fmt.Sprintf("%s", core.SUnit(peak.ValueDB).String())
 		sMeterExtents := cr.TextExtents(sMeterText)
 
 		freqTextY := markTextY - 2*dim.spacing - markExtents.Height - sMeterExtents.Height

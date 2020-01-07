@@ -33,7 +33,6 @@ type peak struct {
 	maxFrequency   core.Frequency
 	valueDB        core.DB
 	lastSeen       time.Time
-	count          int
 }
 
 type peakKey uint
@@ -60,7 +59,7 @@ func New(width core.Px, frequencyRange core.FrequencyRange, vfoFrequency core.Fr
 		viewMode:        core.ViewFixed,
 		margin:          0.02,
 		peakBuffer:      make(map[peakKey]peak),
-		peakTimeout:     5 * time.Second, // TODO make this configurable
+		peakTimeout:     10 * time.Second, // TODO make this configurable
 		dbRangeAdjusted: true,
 	}
 
@@ -430,32 +429,13 @@ func (p Panorama) peaks() []core.PeakMark {
 			lastSeen:       now,
 		}
 		key := toPeakKey(peak.maxFrequency)
-
-		closePeakThreshold := core.Frequency(200) // this value is arbitrary, it should be configurable
-		w := int(toPeakKey(closePeakThreshold))
-		for i := 1; i <= w; i++ {
-			minusI := key - peakKey(i)
-			if value, ok := p.peakBuffer[minusI]; ok && (peak.maxFrequency-value.maxFrequency) < closePeakThreshold {
-				delete(p.peakBuffer, minusI)
-			}
-			plusI := key + peakKey(i)
-			if value, ok := p.peakBuffer[plusI]; ok && (value.maxFrequency-peak.maxFrequency) < closePeakThreshold {
-				delete(p.peakBuffer, plusI)
-			}
-		}
-		value, ok := p.peakBuffer[key]
-		if ok {
-			peak.count = value.count + 1
-			p.peakBuffer[key] = peak
-		} else {
-			p.peakBuffer[key] = peak
-		}
+		p.peakBuffer[key] = peak
 	}
 
 	result := make([]core.PeakMark, 0, len(p.fft.Peaks))
 	for key, peak := range p.peakBuffer {
 		age := now.Sub(peak.lastSeen)
-		if now.Sub(peak.lastSeen) < p.peakTimeout && p.frequencyRange.Contains(peak.maxFrequency) /*&& peak.count > 2*/ {
+		if age < p.peakTimeout && p.frequencyRange.Contains(peak.maxFrequency) {
 			result = append(result, core.PeakMark{
 				FromX:        p.frequencyRange.ToFrct(peak.frequencyRange.From),
 				ToX:          p.frequencyRange.ToFrct(peak.frequencyRange.To),
@@ -464,8 +444,7 @@ func (p Panorama) peaks() []core.PeakMark {
 				ValueY:       p.dbRange.ToFrct(peak.valueDB),
 				ValueDB:      peak.valueDB,
 			})
-		} else if age > 0 && peak.count > 0 {
-			peak.count--
+		} else if age > 0 {
 			p.peakBuffer[key] = peak
 		} else if age >= p.peakTimeout || !p.frequencyRange.Contains(peak.maxFrequency) {
 			delete(p.peakBuffer, key)
