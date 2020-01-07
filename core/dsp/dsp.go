@@ -48,16 +48,16 @@ type DSP struct {
 	ifCenter   core.Frequency
 	rxCenter   core.Frequency // actual receiving frequency
 
-	vfo             core.VFO
-	fftRange        core.FrequencyRange
-	fftWindow       []complex128
-	inputBlockSize  int
-	outputBlockSize int
-	Δf              float64
-	decimation      int
-	filterCoeff     []complex128
-	filterWindow    []complex128
-	fullRangeMode   bool
+	vfo                core.VFO
+	fftRange           core.FrequencyRange
+	fftWindow          []complex128
+	inputBlockSize     int
+	outputBlockSize    int
+	fftRangeOffsetRate float64
+	decimation         int
+	filterCoeff        []complex128
+	filterWindow       []complex128
+	fullRangeMode      bool
 
 	smoother smoother
 }
@@ -101,6 +101,14 @@ func findBlocksize(width, max int) int {
 	return result
 }
 
+func (d DSP) rateOf(f core.Frequency) float64 {
+	return float64(f-d.vfo.Frequency-d.rxCenter+d.ifCenter) / float64(d.sampleRate)
+}
+
+func toRate(frequency float64, sampleRate int) float64 {
+	return frequency / float64(sampleRate)
+}
+
 func (d *DSP) doWork(work work) {
 	if work.fftRange.Width() == 0 {
 		return
@@ -118,7 +126,7 @@ func (d *DSP) doWork(work work) {
 	}
 	if work.fftRange != d.fftRange || needReconfiguration {
 		d.fftRange = work.fftRange
-		d.Δf = float64(d.ifCenter - d.rxCenter - d.fftRange.Center() + d.vfo.Frequency)
+		d.fftRangeOffsetRate = d.rateOf(d.fftRange.Center())
 		d.outputBlockSize = findBlocksize(int(float64(d.inputBlockSize)/(float64(d.sampleRate)/(2*float64(d.fftRange.Width())))), d.inputBlockSize)
 		d.decimation = d.inputBlockSize / d.outputBlockSize
 		d.filterWindow = fftLowpass(d.inputBlockSize, d.decimation)
@@ -135,10 +143,10 @@ func (d *DSP) doWork(work work) {
 	}
 	if needReconfiguration {
 		log.Printf("fftRange %f %f %f (%f) | vfo %f | if %f | rx %f", d.fftRange.From, d.fftRange.Center(), d.fftRange.To, d.fftRange.Width(), d.vfo.Frequency, d.ifCenter, d.rxCenter)
-		log.Printf("reconfiguration: %d %d %f %f %f", d.decimation, d.outputBlockSize, d.fftRange.Width(), d.Δf, toRate(d.Δf, d.sampleRate))
+		log.Printf("reconfiguration: %d %d %f %f", d.decimation, d.outputBlockSize, d.fftRange.Width(), d.fftRangeOffsetRate)
 	}
 
-	spectrum, mean := fftSlice(work.samples, d.outputBlockSize, toRate(d.Δf, d.sampleRate), d.filterWindow)
+	spectrum, mean := fftSlice(work.samples, d.outputBlockSize, d.fftRangeOffsetRate, d.filterWindow)
 	if smoothingDepth > 1 {
 		spectrum = d.smoother.Put(spectrum)
 	}
@@ -373,7 +381,7 @@ func fftSlice(samples []complex128, sliceLength int, sliceCenterOffsetRate float
 	result := make([]float64, sliceLength)
 	mean := 0.0
 	for i := range frequencyDomain {
-		shiftedIndex := (blockSize + shiftOffset + i) % blockSize
+		shiftedIndex := (blockSize + blockCenter - shiftOffset + i) % blockSize
 		var resultIndex int
 		if shiftedIndex < blockCenter {
 			resultIndex = shiftedIndex + blockCenter
@@ -440,10 +448,6 @@ func peaks(fft []float64, envelope []float64, mean float64) ([]core.PeakIndexRan
 	}
 
 	return result, threshold
-}
-
-func toRate(frequency float64, sampleRate int) float64 {
-	return frequency / float64(sampleRate)
 }
 
 func firLowpass(order int, cutoffRate float64) []complex128 {
