@@ -62,6 +62,8 @@ type panoramaType interface {
 	SetFFT(core.FFT)
 	SetVFO(core.VFO)
 	Data() core.Panorama
+	ToggleSignalDetection()
+	SignalDetectionActive() bool
 	ToggleViewMode()
 	ViewMode() core.ViewMode
 	ZoomIn()
@@ -152,6 +154,13 @@ func (m *mainLoop) TuneUp() {
 func (m *mainLoop) TuneDown() {
 	m.q(func() {
 		m.vfo.TuneBy(-m.tuner.dial())
+	})
+}
+
+// ToggleSignalDetection of the panorama.
+func (m *mainLoop) ToggleSignalDetection() {
+	m.q(func() {
+		m.panorama.ToggleSignalDetection()
 	})
 }
 

@@ -36,6 +36,7 @@ type Controller interface {
 	TuneBy(core.Frequency)
 	TuneUp()
 	TuneDown()
+	ToggleSignalDetection()
 	ToggleViewMode()
 	ZoomIn()
 	ZoomOut()

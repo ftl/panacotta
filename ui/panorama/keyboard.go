@@ -16,6 +16,7 @@ func (v *View) connectKeyboard() {
 		gdk.KEY_Down:  v.controller.ZoomIn,
 		gdk.KEY_Left:  v.controller.TuneDown,
 		gdk.KEY_Right: v.controller.TuneUp,
+		gdk.KEY_d:     v.controller.ToggleSignalDetection,
 		gdk.KEY_r:     v.controller.ResetZoom,
 		gdk.KEY_v:     v.controller.ToggleViewMode,
 	}

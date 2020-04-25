@@ -17,10 +17,11 @@ type Panorama struct {
 	vfo            core.VFO
 	band           core.Band
 
-	resolution    map[core.ViewMode]core.HzPerPx
-	viewMode      core.ViewMode
-	fullRangeMode bool
-	margin        float64
+	resolution            map[core.ViewMode]core.HzPerPx
+	viewMode              core.ViewMode
+	fullRangeMode         bool
+	margin                float64
+	signalDetectionActive bool
 
 	fft             core.FFT
 	peakBuffer      map[peakKey]peak
@@ -56,11 +57,12 @@ func New(width core.Px, frequencyRange core.FrequencyRange, vfoFrequency core.Fr
 			core.ViewFixed:    calcResolution(frequencyRange, width),
 			core.ViewCentered: defaultCenteredResolution,
 		},
-		viewMode:        core.ViewFixed,
-		margin:          0.02,
-		peakBuffer:      make(map[peakKey]peak),
-		peakTimeout:     10 * time.Second, // TODO make this configurable
-		dbRangeAdjusted: true,
+		viewMode:              core.ViewFixed,
+		signalDetectionActive: true,
+		margin:                0.02,
+		peakBuffer:            make(map[peakKey]peak),
+		peakTimeout:           10 * time.Second, // TODO make this configurable
+		dbRangeAdjusted:       true,
 	}
 
 	result.vfo.Frequency = vfoFrequency
@@ -193,6 +195,16 @@ func (p *Panorama) SetFFT(fft core.FFT) {
 	p.adjustDBRange()
 }
 
+// ToggleSignalDetection switches the signal detection on and off.
+func (p *Panorama) ToggleSignalDetection() {
+	p.signalDetectionActive = !p.signalDetectionActive
+}
+
+// SignalDetectionActive indicates if the signal detection is active or not.
+func (p *Panorama) SignalDetectionActive() bool {
+	return p.signalDetectionActive
+}
+
 // ToggleViewMode switches to the other view mode.
 func (p *Panorama) ToggleViewMode() {
 	if p.viewMode == core.ViewFixed {
@@ -203,6 +215,7 @@ func (p *Panorama) ToggleViewMode() {
 	p.updateFrequencyRange()
 }
 
+// ViewMode returns the currently active view mode (centered or fixed).
 func (p *Panorama) ViewMode() core.ViewMode {
 	return p.viewMode
 }
@@ -308,8 +321,10 @@ func (p Panorama) data() core.Panorama {
 		Spectrum:           spectrum,
 		SigmaEnvelope:      sigmaEnvelope,
 		PeakThresholdLevel: p.dbRange.ToFrct(core.DB(p.fft.PeakThreshold)),
-		Peaks:              p.peaks(),
 		Waterline:          p.waterline(spectrum),
+	}
+	if p.signalDetectionActive {
+		result.Peaks = p.peaks()
 	}
 
 	return result
