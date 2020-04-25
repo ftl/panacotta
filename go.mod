@@ -1,6 +1,6 @@
 module github.com/ftl/panacotta
 
-go 1.13
+go 1.14
 
 // replace github.com/gotk3/gotk3 => github.com/ftl/gotk3 v0.0.0-20191217073856-2af006b0b1fc
 replace github.com/ftl/gmtry => ../gmtry
