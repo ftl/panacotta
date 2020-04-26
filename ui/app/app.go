@@ -21,6 +21,8 @@ func Run(controller Controller, args []string) {
 		controller: controller,
 	}
 
+	gdk.SetAllowedBackends("x11")
+
 	a.app, err = gtk.ApplicationNew(a.id, glib.APPLICATION_FLAGS_NONE)
 	if err != nil {
 		log.Fatal("Cannot create application: ", err)
