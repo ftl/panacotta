@@ -75,7 +75,7 @@ func (v *View) onButtonPress(da *gtk.DrawingArea, e *gdk.Event) {
 
 	v.mouse.buttonPressed = true
 	v.mouse.startX, v.mouse.startY = buttonEvent.X(), buttonEvent.Y()
-	v.mouse.button = buttonEvent.Button()
+	v.mouse.button = uint(buttonEvent.Button())
 }
 
 func (v *View) onButtonRelease(da *gtk.DrawingArea, e *gdk.Event) {
