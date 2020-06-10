@@ -7,6 +7,7 @@ import (
 	"github.com/gotk3/gotk3/cairo"
 	"github.com/gotk3/gotk3/gtk"
 
+	"github.com/ftl/hamradio/bandplan"
 	"github.com/ftl/panacotta/core"
 )
 
@@ -271,15 +272,15 @@ func drawModeIndicator(cr *cairo.Context, g geometry, data core.Panorama) rect {
 
 		var yOffset float64
 		switch portion.Mode {
-		case core.ModeCW:
+		case bandplan.ModeCW:
 			cr.SetSourceRGB(0.4, 0, 0.4)
-		case core.ModePhone:
+		case bandplan.ModePhone:
 			cr.SetSourceRGB(0.2, 0.4, 0)
-		case core.ModeDigital:
+		case bandplan.ModeDigital:
 			cr.SetSourceRGB(0, 0, 0.6)
-		case core.ModeBeacon:
+		case bandplan.ModeBeacon:
 			cr.SetSourceRGB(1, 0, 0)
-		case core.ModeContest:
+		case bandplan.ModeContest:
 			cr.SetSourceRGB(0.6, 0.3, 0)
 			yOffset = dim.modeIndicatorHeight
 		}

@@ -5,6 +5,7 @@ import (
 	"math"
 	"time"
 
+	"github.com/ftl/hamradio/bandplan"
 	"github.com/ftl/panacotta/core"
 )
 
@@ -15,7 +16,7 @@ type Panorama struct {
 	frequencyRange core.FrequencyRange
 	dbRange        core.DBRange
 	vfo            core.VFO
-	band           core.Band
+	band           bandplan.Band
 
 	resolution            map[core.ViewMode]core.HzPerPx
 	viewMode              core.ViewMode
@@ -159,7 +160,7 @@ func (p *Panorama) SetVFO(vfo core.VFO) {
 	p.vfo = vfo
 
 	if !p.band.Contains(vfo.Frequency) {
-		band := core.IARURegion1.ByFrequency(vfo.Frequency)
+		band := bandplan.IARURegion1.ByFrequency(vfo.Frequency)
 		if band.Width() > 0 {
 			if p.band.Width() > 0 {
 				p.dbRangeAdjusted = false
@@ -185,7 +186,7 @@ func (p *Panorama) adjustDBRange() {
 }
 
 // VFO frequency in Hz
-func (p Panorama) VFO() (vfo core.VFO, band core.Band) {
+func (p Panorama) VFO() (vfo core.VFO, band bandplan.Band) {
 	return p.vfo, p.band
 }
 

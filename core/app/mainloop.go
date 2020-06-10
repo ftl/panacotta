@@ -5,6 +5,7 @@ import (
 	"math"
 	"time"
 
+	"github.com/ftl/hamradio/bandplan"
 	"github.com/ftl/panacotta/core"
 )
 
@@ -56,7 +57,7 @@ type vfoType interface {
 }
 
 type panoramaType interface {
-	VFO() (core.VFO, core.Band)
+	VFO() (core.VFO, bandplan.Band)
 	FrequencyRange() core.FrequencyRange
 	SetSize(core.Px, core.Px)
 	SetFFT(core.FFT)

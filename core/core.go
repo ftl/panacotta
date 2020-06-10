@@ -2,6 +2,7 @@ package core
 
 import (
 	"github.com/ftl/hamradio"
+	"github.com/ftl/hamradio/bandplan"
 )
 
 // Frequeny alias for hamradio.Frequency
@@ -129,7 +130,7 @@ func (r HzPerPx) ToHz(x Px) Frequency {
 type Panorama struct {
 	FrequencyRange FrequencyRange
 	VFO            VFO
-	Band           Band
+	Band           bandplan.Band
 	Resolution     HzPerPx
 
 	VFOLine        Frct
