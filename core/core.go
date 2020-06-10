@@ -1,147 +1,39 @@
 package core
 
 import (
-	"fmt"
-	"math"
+	"github.com/ftl/hamradio"
 )
 
-// Frequency represents a frequency in Hz.
-type Frequency float64
+// Frequeny alias for hamradio.Frequency
+type Frequency = hamradio.Frequency
 
-func (f Frequency) String() string {
-	return fmt.Sprintf("%.2fHz", f)
-}
+// FrequencyRange alias for hamradio.FrequencyRange
+type FrequencyRange = hamradio.FrequencyRange
 
-// FrequencyRange represents a range of frequencies.
-type FrequencyRange struct {
-	From, To Frequency
-}
+// DB alias for hamradio.DB
+type DB = hamradio.DB
 
-func (r FrequencyRange) String() string {
-	return fmt.Sprintf("[%v,%v]", r.From, r.To)
-}
-
-// Center frequency of this range.
-func (r FrequencyRange) Center() Frequency {
-	return r.From + (r.To-r.From)/2
-}
-
-// Width of the frequency range.
-func (r FrequencyRange) Width() Frequency {
-	return r.To - r.From
-}
-
-// Contains the given frequency.
-func (r FrequencyRange) Contains(f Frequency) bool {
-	return f >= r.From && f <= r.To
-}
-
-// Shift the frequency by the given Δ.
-func (r *FrequencyRange) Shift(Δ Frequency) {
-	r.From += Δ
-	r.To += Δ
-}
-
-// Expanded returns a new expanded range.
-func (r FrequencyRange) Expanded(Δ Frequency) FrequencyRange {
-	return FrequencyRange{From: r.From - Δ, To: r.To + Δ}
-}
-
-// ToFrct returns the fraction of the given frequency in this range.
-func (r FrequencyRange) ToFrct(f Frequency) Frct {
-	return Frct((f - r.From) / (r.To - r.From))
-}
-
-// ToFrequency converts the given fraction into a frequency from this range.
-func (r FrequencyRange) ToFrequency(f Frct) Frequency {
-	return r.From + (r.To-r.From)*Frequency(f)
-}
-
-// DB represents decibel (dB).
-type DB float64
-
-func (l DB) String() string {
-	return fmt.Sprintf("%.2fdB", l)
-}
-
-func (l DB) ToSUnit() (s int, unit SUnit, add DB) {
-	for i := len(SUnits) - 1; i >= 0; i-- {
-		if l >= DB(SUnits[i]) {
-			s = i
-			unit = SUnits[i]
-			add = l - DB(unit)
-			return s, unit, add
-		}
-	}
-	return 0, S0, l - DB(S0)
-}
-
-type SUnit DB
+// SUnit alias for hamradio.SUnit
+type SUnit = hamradio.SUnit
 
 const (
-	S0 SUnit = -127
-	S1 SUnit = -121
-	S2 SUnit = -115
-	S3 SUnit = -109
-	S4 SUnit = -103
-	S5 SUnit = -97
-	S6 SUnit = -91
-	S7 SUnit = -85
-	S8 SUnit = -79
-	S9 SUnit = -73
+	S0 SUnit = hamradio.S0
+	S1 SUnit = hamradio.S1
+	S2 SUnit = hamradio.S2
+	S3 SUnit = hamradio.S3
+	S4 SUnit = hamradio.S4
+	S5 SUnit = hamradio.S5
+	S6 SUnit = hamradio.S6
+	S7 SUnit = hamradio.S7
+	S8 SUnit = hamradio.S8
+	S9 SUnit = hamradio.S9
 )
 
-var SUnits = []SUnit{S0, S1, S2, S3, S4, S5, S6, S7, S8, S9}
+// SUnits contains all S-units (S0-S9)
+var SUnits = hamradio.SUnits
 
-func (u SUnit) String() string {
-	s, _, add := DB(u).ToSUnit()
-	if s == 9 {
-		return fmt.Sprintf("S%d+%.0fdB", s, add)
-	} else if s > 0 {
-		return fmt.Sprintf("S%d", s)
-	} else {
-		return fmt.Sprintf("S%d%.0fdB", s, add)
-	}
-}
-
-// DBRange represents a range of dB.
-type DBRange struct {
-	From, To DB
-}
-
-func (r DBRange) String() string {
-	return fmt.Sprintf("[%v,%v]", r.From, r.To)
-}
-
-func (r DBRange) Normalized() DBRange {
-	if r.From > r.To {
-		return DBRange{
-			From: r.To,
-			To:   r.From,
-		}
-	}
-	return r
-}
-
-// Width of the dB range.
-func (r DBRange) Width() DB {
-	return DB(math.Abs(float64(r.To - r.From)))
-}
-
-// Contains the given value in dB.
-func (r DBRange) Contains(value DB) bool {
-	return value >= r.From && value <= r.To
-}
-
-// ToFrct returns the fraction of the given value in this range.
-func (r DBRange) ToFrct(value DB) Frct {
-	return Frct(float64((value - r.From) / r.Width()))
-}
-
-// ToDB converts the given fraction into a DB value in this range.
-func (r DBRange) ToDB(f Frct) DB {
-	return r.From + (r.To-r.From)*DB(f)
-}
+// DBRange alias for hamradio.DBRange
+type DBRange = hamradio.DBRange
 
 // Configuration parameters of the application.
 type Configuration struct {
@@ -169,6 +61,26 @@ type SamplesInput interface {
 
 // Frct is a fraction of height or width; this is a abstraction of the coordinates on the screen.
 type Frct float64
+
+// ToFrequencyFrct returns the fraction of the given frequency in the given range.
+func ToFrequencyFrct(f Frequency, r FrequencyRange) Frct {
+	return Frct((f - r.From) / r.Width())
+}
+
+// FrctToFrequency converts the given fraction into a frequency from the given range.
+func FrctToFrequency(f Frct, r FrequencyRange) Frequency {
+	return r.From + (r.To-r.From)*Frequency(f)
+}
+
+// ToDBFrct returns the fraction of the given value in this range.
+func ToDBFrct(value DB, r DBRange) Frct {
+	return Frct((value - r.From) / r.Width())
+}
+
+// FrctToDB converts the given fraction into a DB value in the given range.
+func FrctToDB(f Frct, r DBRange) DB {
+	return r.From + (r.To-r.From)*DB(f)
+}
 
 // FPoint represents a point on the screen using the Frct unit for its coordinates.
 type FPoint struct {

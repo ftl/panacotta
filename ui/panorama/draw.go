@@ -261,8 +261,8 @@ func drawModeIndicator(cr *cairo.Context, g geometry, data core.Panorama) rect {
 	cr.SetLineWidth(1.0)
 
 	for _, portion := range data.Band.Portions {
-		startX := r.toX(data.FrequencyRange.ToFrct(portion.From))
-		endX := r.toX(data.FrequencyRange.ToFrct(portion.To))
+		startX := r.toX(core.ToFrequencyFrct(portion.From, data.FrequencyRange))
+		endX := r.toX(core.ToFrequencyFrct(portion.To, data.FrequencyRange))
 		if endX < r.left || startX > r.right {
 			continue
 		}

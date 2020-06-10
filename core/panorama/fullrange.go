@@ -18,9 +18,9 @@ func (p Panorama) fullRangeData() core.Panorama {
 		Band:           p.band,
 		Resolution:     p.resolution[p.viewMode],
 
-		VFOLine:        frequencyRange.ToFrct(p.vfo.Frequency),
-		VFOFilterFrom:  frequencyRange.ToFrct(p.vfo.Frequency - p.vfo.FilterWidth/2),
-		VFOFilterTo:    frequencyRange.ToFrct(p.vfo.Frequency + p.vfo.FilterWidth/2),
+		VFOLine:        core.ToFrequencyFrct(p.vfo.Frequency, frequencyRange),
+		VFOFilterFrom:  core.ToFrequencyFrct(p.vfo.Frequency-p.vfo.FilterWidth/2, frequencyRange),
+		VFOFilterTo:    core.ToFrequencyFrct(p.vfo.Frequency+p.vfo.FilterWidth/2, frequencyRange),
 		VFOSignalLevel: p.signalLevel(),
 
 		FrequencyScale:     p.fullRangeFrequencyScale(),
@@ -60,7 +60,7 @@ func (p Panorama) fullRangeFrequencyScale() []core.FrequencyMark {
 	freqScale := make([]core.FrequencyMark, 0, int(frequencyRange.Width())/fFactor)
 	for f := core.Frequency((int(frequencyRange.From) / fFactor) * fFactor); f < frequencyRange.To; f += core.Frequency(fFactor) {
 		mark := core.FrequencyMark{
-			X:         frequencyRange.ToFrct(f),
+			X:         core.ToFrequencyFrct(f, frequencyRange),
 			Frequency: f,
 		}
 		freqScale = append(freqScale, mark)
@@ -74,8 +74,8 @@ func (p Panorama) fullRangeSpectrum() []core.FPoint {
 	result := make([]core.FPoint, len(p.fft.Data))
 	for i, d := range p.fft.Data {
 		result[i] = core.FPoint{
-			X: frequencyRange.ToFrct(p.fft.Frequency(i)),
-			Y: p.dbRange.ToFrct(core.DB(d)),
+			X: core.ToFrequencyFrct(p.fft.Frequency(i), frequencyRange),
+			Y: core.ToDBFrct(core.DB(d), p.dbRange),
 		}
 	}
 	return result

@@ -44,7 +44,7 @@ func TestDBRange_ToFrct(t *testing.T) {
 
 	for i, tc := range tt {
 		t.Run(fmt.Sprintf("%d", i), func(t *testing.T) {
-			actual := DBRange{tc.from, tc.to}.ToFrct(tc.value)
+			actual := ToDBFrct(tc.value, DBRange{tc.from, tc.to})
 			assert.Equal(t, tc.expected, actual)
 		})
 	}

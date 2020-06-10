@@ -311,16 +311,16 @@ func (p Panorama) data() core.Panorama {
 		Band:           p.band,
 		Resolution:     p.resolution[p.viewMode],
 
-		VFOLine:        p.frequencyRange.ToFrct(p.vfo.Frequency),
-		VFOFilterFrom:  p.frequencyRange.ToFrct(p.vfo.Frequency - p.vfo.FilterWidth/2),
-		VFOFilterTo:    p.frequencyRange.ToFrct(p.vfo.Frequency + p.vfo.FilterWidth/2),
+		VFOLine:        core.ToFrequencyFrct(p.vfo.Frequency, p.frequencyRange),
+		VFOFilterFrom:  core.ToFrequencyFrct(p.vfo.Frequency-p.vfo.FilterWidth/2, p.frequencyRange),
+		VFOFilterTo:    core.ToFrequencyFrct(p.vfo.Frequency+p.vfo.FilterWidth/2, p.frequencyRange),
 		VFOSignalLevel: p.signalLevel(),
 
 		FrequencyScale:     p.frequencyScale(),
 		DBScale:            p.dbScale(),
 		Spectrum:           spectrum,
 		SigmaEnvelope:      sigmaEnvelope,
-		PeakThresholdLevel: p.dbRange.ToFrct(core.DB(p.fft.PeakThreshold)),
+		PeakThresholdLevel: core.ToDBFrct(core.DB(p.fft.PeakThreshold), p.dbRange),
 		Waterline:          p.waterline(spectrum),
 	}
 	if p.signalDetectionActive {
@@ -364,7 +364,7 @@ func (p Panorama) frequencyScale() []core.FrequencyMark {
 	freqScale := make([]core.FrequencyMark, 0, int(p.frequencyRange.Width())/fFactor)
 	for f := core.Frequency((int(p.frequencyRange.From) / fFactor) * fFactor); f < p.frequencyRange.To; f += core.Frequency(fFactor) {
 		mark := core.FrequencyMark{
-			X:         p.frequencyRange.ToFrct(f),
+			X:         core.ToFrequencyFrct(f, p.frequencyRange),
 			Frequency: f,
 		}
 		freqScale = append(freqScale, mark)
@@ -385,7 +385,7 @@ func (p Panorama) dbScale() []core.DBMark {
 		db := core.DB(startDB + i*10)
 		dbScale[i] = core.DBMark{
 			DB: db,
-			Y:  p.dbRange.ToFrct(db),
+			Y:  core.ToDBFrct(db, p.dbRange),
 		}
 	}
 
@@ -414,12 +414,12 @@ func (p Panorama) spectrum() ([]core.FPoint, []core.FPoint) {
 		}
 
 		result[resultIndex] = core.FPoint{
-			X: p.frequencyRange.ToFrct(p.fft.Frequency(i)),
-			Y: p.dbRange.ToFrct(core.DB(d)),
+			X: core.ToFrequencyFrct(p.fft.Frequency(i), p.frequencyRange),
+			Y: core.ToDBFrct(core.DB(d), p.dbRange),
 		}
 		sigmaEnvelope[resultIndex] = core.FPoint{
-			X: p.frequencyRange.ToFrct(p.fft.Frequency(i)),
-			Y: p.dbRange.ToFrct(core.DB(t)),
+			X: core.ToFrequencyFrct(p.fft.Frequency(i), p.frequencyRange),
+			Y: core.ToDBFrct(core.DB(t), p.dbRange),
 		}
 		resultIndex++
 	}
@@ -452,11 +452,11 @@ func (p Panorama) peaks() []core.PeakMark {
 		age := now.Sub(peak.lastSeen)
 		if age < p.peakTimeout && p.frequencyRange.Contains(peak.maxFrequency) {
 			result = append(result, core.PeakMark{
-				FromX:        p.frequencyRange.ToFrct(peak.frequencyRange.From),
-				ToX:          p.frequencyRange.ToFrct(peak.frequencyRange.To),
-				MaxX:         p.frequencyRange.ToFrct(peak.maxFrequency),
+				FromX:        core.ToFrequencyFrct(peak.frequencyRange.From, p.frequencyRange),
+				ToX:          core.ToFrequencyFrct(peak.frequencyRange.To, p.frequencyRange),
+				MaxX:         core.ToFrequencyFrct(peak.maxFrequency, p.frequencyRange),
 				MaxFrequency: peak.maxFrequency,
-				ValueY:       p.dbRange.ToFrct(peak.valueDB),
+				ValueY:       core.ToDBFrct(peak.valueDB, p.dbRange),
 				ValueDB:      peak.valueDB,
 			})
 		} else if age > 0 {
