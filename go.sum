@@ -19,6 +19,8 @@ github.com/google/go-cmp v0.3.0/go.mod h1:8QqcDgzrUqlUb/G2PQTWiueGozuR1884gddMyw
 github.com/google/go-cmp v0.3.1/go.mod h1:8QqcDgzrUqlUb/G2PQTWiueGozuR1884gddMywk6iLU=
 github.com/google/go-cmp v0.4.0 h1:xsAVV57WRhGj6kEIi8ReJzQlHHqcBYCElAvkovg3B/4=
 github.com/google/go-cmp v0.4.0/go.mod h1:v8dTdLbMG2kIc/vJvl+f65V22dbkXbowE6jgT/gNBxE=
+github.com/gotk3/gotk3 v0.0.0-20200621125936-10ee8f07c02e h1:4VOdrF68v8VkDGa2cmYhkW4nTqE9Qn4/Z3eByHi2ATw=
+github.com/gotk3/gotk3 v0.0.0-20200621125936-10ee8f07c02e/go.mod h1:/hqFpkNa9T3JgNAE2fLvCdov7c5bw//FHNZrZ3Uv9/Q=
 github.com/jpoirier/gortlsdr v2.10.0+incompatible h1:y76oRd3I2+hqcFY2uxbKIRsHzVjJm2s06FnB0SHr96M=
 github.com/jpoirier/gortlsdr v2.10.0+incompatible/go.mod h1:RcFRxNvqWDjxbCTkWcmGP4WV0HHSrG1Q0ce0V3TdN6o=
 github.com/mjibson/go-dsp v0.0.0-20180508042940-11479a337f12 h1:dd7vnTDfjtwCETZDrRe+GPYNLA1jBtbZeyfyE8eZCyk=
