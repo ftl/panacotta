@@ -111,7 +111,7 @@ func connectToGeometry(geometry *gmtry.Geometry, id gmtry.ID, window *gtk.Window
 	window.Connect("configure-event", func(_ interface{}, event *gdk.Event) {
 		e := gdk.EventConfigureNewFromEvent(event)
 		w := geometry.Get(id)
-		w.SetPosition(e.X(), e.Y())
+		w.SetPosition(window.GetPosition())
 		w.SetSize(e.Width(), e.Height())
 	})
 	window.Connect("window-state-event", func(_ interface{}, event *gdk.Event) {
